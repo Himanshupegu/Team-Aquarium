@@ -1,0 +1,28 @@
+# Framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# Google ADK + Gemini
+google-adk>=0.1.0
+google-generativeai>=0.7.0
+langchain-google-genai>=2.0.0
+
+# Fallback LLMs
+groq>=0.9.0
+mistralai>=1.0.0
+
+# HTTP client
+httpx>=0.27.2
+
+# Database
+sqlalchemy>=2.0.35
+
+# OpenAPI spec parsing
+jsonref>=1.1.0
+
+# Utilities
+python-dotenv>=1.0.1
+pydantic>=2.9.2
+
+# PostgreSQL driver (needed when DATABASE_URL is postgres)
+psycopg2-binary>=2.9.9
