@@ -52,12 +52,13 @@ class LLMRouter:
             return [self._call_gemini, self._call_groq, self._call_mistral]
 
     async def _call_gemini(self, prompt: str, max_tokens: int) -> str:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(GEMINI_MODEL)
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(max_output_tokens=max_tokens)
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(max_output_tokens=max_tokens),
         )
         return response.text
 

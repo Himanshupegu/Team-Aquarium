@@ -14,8 +14,8 @@ GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY", "")
 GROQ_API_KEY        = os.getenv("GROQ_API_KEY", "")
 MISTRAL_API_KEY     = os.getenv("MISTRAL_API_KEY", "")
 
-GEMINI_MODEL        = "gemini-2.0-flash"
-GROQ_MODEL          = "llama-3.1-70b-versatile"
+GEMINI_MODEL        = "gemini-2.0-flash-lite"
+GROQ_MODEL          = "llama-3.3-70b-versatile"
 MISTRAL_MODEL       = "mistral-small-latest"
 
 # ── Database ───────────────────────────────────────────────────────────────
