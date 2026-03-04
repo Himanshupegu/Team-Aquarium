@@ -9,12 +9,16 @@ All agents call these tools instead of making raw HTTP requests.
 Budget tracking enforces the 100-calls/day limit via the ApiUsageTracker
 DB table so we never hit a 429 by surprise.
 """
+import os
 import httpx
 import jsonref
 from datetime import datetime, timezone
 from typing import Any
 
 from backend.config import CAMPAIGNX_API_KEY, CAMPAIGNX_BASE_URL, OPENAPI_SPEC_URL
+
+# ── Mock mode for testing without spending API calls ─────────────────────
+MOCK_MODE = os.getenv("MOCK_API", "false").lower() == "true"
 
 # ── Module-level spec cache ──────────────────────────────────────────────
 _cached_spec: dict | None = None
@@ -319,6 +323,11 @@ def call_tool_by_name(tool_name: str, **kwargs) -> dict:
                 f"[api_tools] Unknown tool '{tool_name}'. "
                 f"Available tools: {available}"
             )
+
+    # Mock mode — return fake response without making real API call
+    if MOCK_MODE:
+        print(f"[api_tools] MOCK MODE — skipping real call to {tool_name}")
+        return {"campaign_id": "mock-campaign-id-1234", "response_code": 200, "message": "mock"}
 
     # Budget guard
     remaining = check_budget()

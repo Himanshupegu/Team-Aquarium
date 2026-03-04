@@ -1,1 +1,227 @@
-# Agent 4: CampaignExecutorAgent — Phase 2
+"""
+agents/executor.py
+Sends approved campaign variants via the CampaignX API and saves results to DB.
+
+Single public function:
+    execute_campaigns(variants, iteration, cohort_ids) -> dict
+
+Returns: {"sent": [...], "failed": [...]}
+"""
+from datetime import datetime, timedelta, timezone
+
+from backend.tools.api_tools import call_tool_by_name
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HELPER 1 — build_send_time
+# ═══════════════════════════════════════════════════════════════════════════
+
+def build_send_time(hour_ist: int) -> str:
+    """
+    Return send_time in DD:MM:YY HH:MM:SS format (2-digit year — critical).
+    Schedules for hour_ist today in IST. If that hour has already passed, uses tomorrow.
+    """
+    now = datetime.now(IST)
+    send = now.replace(hour=hour_ist, minute=0, second=0, microsecond=0)
+    if send <= now:
+        send += timedelta(days=1)
+    return send.strftime("%d:%m:%y %H:%M:%S")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HELPER 2 — sanitize_customer_ids
+# ═══════════════════════════════════════════════════════════════════════════
+
+def sanitize_customer_ids(customer_ids: list[str], cohort_ids: set[str]) -> list[str]:
+    """
+    Remove IDs not in the cohort and deduplicate while preserving order.
+    Logs a warning if any IDs were removed.
+    """
+    # Deduplicate preserving order
+    deduped = list(dict.fromkeys(customer_ids))
+    dup_count = len(customer_ids) - len(deduped)
+    if dup_count > 0:
+        print(f"[executor] Removed {dup_count} duplicate customer IDs")
+
+    # Filter to valid cohort IDs
+    valid = [cid for cid in deduped if cid in cohort_ids]
+    removed_count = len(deduped) - len(valid)
+    if removed_count > 0:
+        print(f"[executor] WARNING: Removed {removed_count} customer IDs not found in cohort")
+
+    return valid
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HELPER 3 — save_campaign_to_db
+# ═══════════════════════════════════════════════════════════════════════════
+
+def save_campaign_to_db(
+    campaign_id: str,
+    iteration: int,
+    variant_label: str,
+    segment_label: str,
+    subject: str,
+    body: str,
+    customer_ids: list[str],
+    send_time: str,
+    strategy_notes: str,
+) -> None:
+    """Save one campaign row to the campaigns table. Opens its own DB session."""
+    from backend.db.session import SessionLocal
+    from backend.db.models import Campaign
+
+    db = SessionLocal()
+    try:
+        campaign = Campaign(
+            campaign_id=campaign_id,
+            iteration=iteration,
+            variant_label=variant_label,
+            segment_label=segment_label,
+            subject=subject,
+            body=body,
+            customer_ids=customer_ids,
+            send_time=send_time,
+            strategy_notes=strategy_notes,
+        )
+        db.add(campaign)
+        db.commit()
+        print(f"[executor] Saved campaign {campaign_id} to DB")
+    finally:
+        db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN FUNCTION
+# ═══════════════════════════════════════════════════════════════════════════
+
+async def execute_campaigns(
+    variants: list[dict],
+    iteration: int,
+    cohort_ids: set[str],
+) -> dict:
+    """
+    Send approved campaign variants via the CampaignX API.
+
+    Args:
+        variants: List of dicts, each with keys:
+            variant_label, segment_label, subject, body,
+            customer_ids (list), send_time (str), strategy_notes
+        iteration: Campaign iteration number (1-based)
+        cohort_ids: Set of all valid customer IDs from the cohort
+
+    Returns:
+        {"sent": [{"campaign_id", "variant_label", "segment_label", "customer_count"}],
+         "failed": [{"variant_label", "error"}]}
+    """
+    sent: list[dict] = []
+    failed: list[dict] = []
+
+    for variant in variants:
+        variant_label = variant.get("variant_label", "?")
+        segment_label = variant.get("segment_label", "?")
+
+        try:
+            # Sanitize customer IDs
+            raw_ids = variant.get("customer_ids", [])
+            clean_ids = sanitize_customer_ids(raw_ids, cohort_ids)
+
+            if not clean_ids:
+                msg = f"No valid customer IDs remaining after sanitization"
+                print(f"[executor] Skipping variant {variant_label}/{segment_label}: {msg}")
+                failed.append({"variant_label": variant_label, "error": msg})
+                continue
+
+            subject = variant.get("subject", "")
+            body = variant.get("body", "")
+            send_time = variant.get("send_time", "")
+            strategy_notes = variant.get("strategy_notes", "")
+
+            print(f"[executor] Sending variant {variant_label} for '{segment_label}' "
+                  f"({len(clean_ids)} customers, send_time={send_time})")
+
+            # Call the CampaignX API via dynamically discovered tool
+            result = call_tool_by_name(
+                "send_campaign",
+                subject=subject,
+                body=body,
+                list_customer_ids=clean_ids,
+                send_time=send_time,
+            )
+
+            # Check for API errors
+            response_code = result.get("response_code", 0)
+            if response_code not in (200, 201):
+                error_msg = result.get("message", result.get("detail", str(result)))
+                print(f"[executor] API error for {variant_label}: {error_msg}")
+                failed.append({"variant_label": variant_label, "error": str(error_msg)})
+                continue
+
+            campaign_id = result.get("campaign_id", "")
+            if not campaign_id:
+                print(f"[executor] WARNING: No campaign_id in response for {variant_label}")
+                failed.append({"variant_label": variant_label, "error": "No campaign_id in response"})
+                continue
+
+            # Save to DB
+            save_campaign_to_db(
+                campaign_id=campaign_id,
+                iteration=iteration,
+                variant_label=variant_label,
+                segment_label=segment_label,
+                subject=subject,
+                body=body,
+                customer_ids=clean_ids,
+                send_time=send_time,
+                strategy_notes=strategy_notes,
+            )
+
+            sent.append({
+                "campaign_id": campaign_id,
+                "variant_label": variant_label,
+                "segment_label": segment_label,
+                "customer_count": len(clean_ids),
+            })
+            print(f"[executor] ✓ Campaign {campaign_id} sent successfully")
+
+        except Exception as e:
+            print(f"[executor] ERROR sending variant {variant_label}: {type(e).__name__}: {e}")
+            failed.append({"variant_label": variant_label, "error": str(e)})
+
+    # Log summary to agent_logs
+    _log_to_db(iteration, sent, failed)
+
+    print(f"[executor] Execution complete — {len(sent)} sent, {len(failed)} failed")
+    return {"sent": sent, "failed": failed}
+
+
+# ── Logging ───────────────────────────────────────────────────────────────
+
+def _log_to_db(iteration: int, sent: list[dict], failed: list[dict]) -> None:
+    """Log the execution summary to agent_logs."""
+    from backend.db.session import SessionLocal
+    from backend.db.models import AgentLog
+
+    db = SessionLocal()
+    try:
+        log = AgentLog(
+            timestamp=datetime.now(timezone.utc),
+            agent_name="executor",
+            iteration=iteration,
+            input_data={
+                "variant_count": len(sent) + len(failed),
+            },
+            output_data={
+                "sent_count": len(sent),
+                "failed_count": len(failed),
+                "campaign_ids": [s["campaign_id"] for s in sent],
+            },
+            reasoning=f"Executed {len(sent)} campaigns successfully, {len(failed)} failed",
+        )
+        db.add(log)
+        db.commit()
+        print("[executor] Logged to agent_logs table")
+    finally:
+        db.close()
