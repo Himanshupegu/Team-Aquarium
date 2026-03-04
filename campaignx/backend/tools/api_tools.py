@@ -326,6 +326,23 @@ def call_tool_by_name(tool_name: str, **kwargs) -> dict:
 
     # Mock mode — return fake response without making real API call
     if MOCK_MODE:
+        # Special case: report endpoint returns realistic dummy rows
+        if "report" in tool_name.lower():
+            import random
+            bonus_clicks = random.randint(0, 10)
+            bonus_opens = random.randint(0, 20)
+            dummy_rows = (
+                [{"EO": "Y", "EC": "Y"}] * (15 + bonus_clicks) +
+                [{"EO": "Y", "EC": "N"}] * (25 + bonus_opens) +
+                [{"EO": "N", "EC": "N"}] * 60
+            )
+            print(f"[api_tools] MOCK MODE — returning {len(dummy_rows)} dummy report rows")
+            return {
+                "data": dummy_rows,
+                "total_rows": len(dummy_rows),
+                "response_code": 200,
+                "campaign_id": kwargs.get("campaign_id", "mock-123"),
+            }
         print(f"[api_tools] MOCK MODE — skipping real call to {tool_name}")
         return {"campaign_id": "mock-campaign-id-1234", "response_code": 200, "message": "mock"}
 
