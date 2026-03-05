@@ -327,7 +327,7 @@ def call_tool_by_name(tool_name: str, **kwargs) -> dict:
     # Mock mode — return fake response without making real API call
     if MOCK_MODE:
         # Special case: report endpoint returns realistic dummy rows
-        if "report" in tool_name.lower():
+        if "report" in tool["operation_id"].lower():
             import random
             bonus_clicks = random.randint(0, 10)
             bonus_opens = random.randint(0, 20)
