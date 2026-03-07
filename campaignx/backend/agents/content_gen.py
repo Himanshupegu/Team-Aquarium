@@ -33,7 +33,7 @@ def validate_content(subject: str, body: str, cta_url: str) -> list[str]:
     if re.search(r"https?://", subject):
         errors.append("Subject contains a URL (not allowed)")
 
-    if cta_url not in body:
+    if cta_url and cta_url not in body:
         errors.append(f"Body is missing the CTA URL: {cta_url}")
 
     if len(body) > MAX_BODY_CHARS:
@@ -54,8 +54,8 @@ def _fix_content_programmatically(subject: str, body: str, cta_url: str) -> tupl
     if len(subject) > MAX_SUBJECT_CHARS:
         subject = subject[: MAX_SUBJECT_CHARS - 3].rstrip() + "..."
 
-    # Ensure CTA URL in body — trim body first to make room, then append
-    if cta_url not in body:
+    # Ensure CTA URL in body — only if cta_url is provided
+    if cta_url and cta_url not in body:
         max_body_before_url = MAX_BODY_CHARS - 1 - len(cta_url)  # 1 for \n
         body = body[:max_body_before_url] + "\n" + cta_url
 
@@ -117,7 +117,7 @@ PRODUCT: {parsed_brief.get("product_name", "XDeposit")}
 KEY MESSAGE: {parsed_brief.get("key_message", "")}
 SPECIAL OFFERS:
 {offers_text}
-CTA URL (must include exactly once in body): {parsed_brief.get("cta_url", CAMPAIGN_CTA_URL)}
+CTA URL: {parsed_brief.get("cta_url", "") or "None provided"}
 
 TARGET SEGMENT: {segment.label}
 SEGMENT USP: {segment.key_usp}
@@ -129,7 +129,7 @@ RECOMMENDED TONE: {segment.recommended_tone}
 STRICT RULES:
 1. subject: English text ONLY, NO URLs, NO emojis, max {MAX_SUBJECT_CHARS} characters
 2. body: English text, emojis allowed ✅, HTML tags <b>, <i>, <u> allowed
-3. body MUST include this CTA URL exactly once: {parsed_brief.get("cta_url", CAMPAIGN_CTA_URL)}
+3. If a CTA URL is provided above, include it exactly once in the body. If no CTA URL is provided, do not include any URL.
 4. body max {MAX_BODY_CHARS} characters
 5. Do NOT use any other URLs in subject or body
 6. Make the email feel personal and relevant to this specific segment
@@ -213,7 +213,7 @@ async def generate_content(
     Returns:
         {"subject": str, "body": str, "strategy_notes": str}
     """
-    cta_url = parsed_brief.get("cta_url", CAMPAIGN_CTA_URL)
+    cta_url = parsed_brief.get("cta_url", "") or ""
 
     # ── Attempt 1 ────────────────────────────────────────────────────────
     prompt = _build_prompt(parsed_brief, segment, variant_label, iteration, prev_performance)

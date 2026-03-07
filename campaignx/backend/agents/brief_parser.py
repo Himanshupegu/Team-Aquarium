@@ -70,17 +70,30 @@ def _strip_markdown_fences(text: str) -> str:
 
 
 def _validate_and_fix(parsed: dict) -> dict:
-    """Ensure all expected keys exist with valid values."""
-    # Defaults for missing keys
-    parsed.setdefault("product_name", "XDeposit")
-    parsed.setdefault("key_message", "")
-    parsed.setdefault("special_offers", [])
-    parsed.setdefault("optimization_goal", "both")
-    parsed.setdefault("include_inactive", True)
-    parsed.setdefault("cta_url", CAMPAIGN_CTA_URL)
-    parsed.setdefault("tone", "professional")
-    parsed.setdefault("campaign_type", "product_launch")
-    parsed.setdefault("target_audience_notes", "")
+    """Ensure all expected keys exist with valid, non-None values."""
+    # ── Safe defaults — used for both missing AND None values ────────────
+    _DEFAULTS = {
+        "product_name": "",
+        "key_message": "",
+        "special_offers": [],
+        "optimization_goal": "both",
+        "include_inactive": False,
+        "cta_url": None,               # legitimately optional
+        "tone": "professional",
+        "campaign_type": "product_launch",
+        "target_audience_notes": "",
+    }
+
+    # Fill missing keys
+    for key, default in _DEFAULTS.items():
+        parsed.setdefault(key, default)
+
+    # Replace None values with safe defaults (cta_url is allowed to be None)
+    for key, default in _DEFAULTS.items():
+        if key == "cta_url":
+            continue  # None is a valid value for cta_url
+        if parsed[key] is None:
+            parsed[key] = default
 
     # Normalize enum values
     if parsed["optimization_goal"] not in _VALID_GOALS:
