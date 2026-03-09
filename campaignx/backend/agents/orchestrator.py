@@ -44,6 +44,7 @@ class CampaignState:
     error: str | None = None
     final_summary: dict = field(default_factory=dict)
     cohort_ids: set = field(default_factory=set)
+    cached_cohort: list = field(default_factory=list)
     _profiler: object = field(default=None, repr=False)
 
 
@@ -52,6 +53,7 @@ class CampaignState:
 # ═══════════════════════════════════════════════════════════════════════════
 
 _active_states: dict[str, CampaignState] = {}
+_cohort_cache: list = []  # Module-level cache: fetch cohort once per server session
 
 
 def get_state(campaign_id: str) -> CampaignState | None:
@@ -80,7 +82,7 @@ class Orchestrator:
     # MAIN RUN — Steps 1-3 (pauses at awaiting_approval)
     # ──────────────────────────────────────────────────────────────────────
 
-    async def run(self, state: CampaignState) -> CampaignState:
+    async def run(self, campaign_id: str, state: CampaignState) -> CampaignState:
         """
         Run the pipeline from the beginning. Pauses after content generation
         at status="awaiting_approval" for human review.
@@ -89,33 +91,40 @@ class Orchestrator:
             # ── Step 1: Parse brief ──────────────────────────────────────
             state.status = "parsing"
             print(f"[orchestrator] Step 1: Parsing campaign brief...")
-            state.parsed_brief = await parse_brief(state.campaign_brief)
+            state.parsed_brief = await parse_brief(campaign_id, state.campaign_brief)
             print(f"[orchestrator] Brief parsed: product={state.parsed_brief.get('product_name')}")
 
             # ── Step 2: Load cohort and profile ──────────────────────────
             state.status = "profiling"
             print("[orchestrator] Step 2: Loading cohort and profiling segments...")
-            cohort_result = call_tool_by_name("get_customer_cohort")
-            cohort = cohort_result.get("data", [])
+            global _cohort_cache
+            if _cohort_cache:
+                cohort = _cohort_cache
+                print(f"[orchestrator] Cohort loaded from cache: {len(cohort)} customers")
+            else:
+                cohort_result = call_tool_by_name("get_customer_cohort")
+                cohort = cohort_result.get("data", [])
+                _cohort_cache = cohort
+                print(f"[orchestrator] Cohort fetched from API: {len(cohort)} customers")
+            state.cached_cohort = cohort
             state.cohort_ids = {c["customer_id"] for c in cohort}
-            print(f"[orchestrator] Cohort loaded: {len(cohort)} customers")
 
             profiler = CustomerProfiler(cohort)
-            state.all_segments = await profiler.get_all_segments(state.parsed_brief)
+            state.all_segments = await profiler.get_all_segments(campaign_id, state.parsed_brief)
             state._profiler = profiler
             print(f"[orchestrator] {len(state.all_segments)} segments created")
 
-            # Pick initial segments: top 2 by size
+            # Pick initial segments: all segments for iteration 1 coverage
             sorted_segs = sorted(
                 state.all_segments.items(),
                 key=lambda x: x[1].size,
                 reverse=True,
             )
-            state.next_segments = [label for label, _ in sorted_segs[:2]]
-            print(f"[orchestrator] Initial segments: {state.next_segments}")
+            state.next_segments = [label for label, _ in sorted_segs]
+            print(f"[orchestrator] Initial segments (all): {state.next_segments}")
 
             # ── Step 3: Enter main loop (first iteration) ────────────────
-            state = await self._generate_variants(state)
+            state = await self._generate_variants(campaign_id, state)
             return state  # paused at awaiting_approval
 
         except Exception as e:
@@ -130,6 +139,7 @@ class Orchestrator:
 
     async def resume(
         self,
+        campaign_id: str,
         state: CampaignState,
         decision: str,
         feedback: str = "",
@@ -149,7 +159,7 @@ class Orchestrator:
             # ── Step 4: Handle decision ──────────────────────────────────
             if decision == "reject":
                 print(f"[orchestrator] Human rejected. Feedback: {feedback}")
-                state = await self._regenerate_with_feedback(state)
+                state = await self._regenerate_with_feedback(campaign_id, state)
                 return state  # back to awaiting_approval
 
             if decision != "approve":
@@ -163,6 +173,7 @@ class Orchestrator:
             state.status = "executing"
             print(f"[orchestrator] Step 5: Executing {len(state.pending_variants)} variants...")
             exec_result = await execute_campaigns(
+                campaign_id,
                 state.pending_variants,
                 state.iteration,
                 state.cohort_ids,
@@ -176,7 +187,7 @@ class Orchestrator:
             state.status = "analyzing"
             print("[orchestrator] Step 6: Analyzing performance...")
             if exec_result["sent"]:
-                analysis = await analyze_performance(exec_result["sent"], state.iteration)
+                analysis = await analyze_performance(campaign_id, exec_result["sent"], state.iteration)
                 # Tag results with iteration for optimizer
                 for r in analysis["results"]:
                     r["iteration"] = state.iteration
@@ -193,6 +204,7 @@ class Orchestrator:
             state.segments_used.extend(state.next_segments)
 
             opt_decision = await decide_next_iteration(
+                campaign_id=campaign_id,
                 all_results=state.all_results,
                 segments_used=state.segments_used,
                 all_segments=state.all_segments,
@@ -207,7 +219,7 @@ class Orchestrator:
                 print(f"[orchestrator] Continuing to iteration {state.iteration + 1} "
                       f"with segments: {state.next_segments}")
                 # Loop back to Step 3
-                state = await self._generate_variants(state)
+                state = await self._generate_variants(campaign_id, state)
                 return state  # paused at awaiting_approval again
             else:
                 # Done — build final summary
@@ -227,7 +239,7 @@ class Orchestrator:
     # INTERNAL METHODS
     # ══════════════════════════════════════════════════════════════════════
 
-    async def _generate_variants(self, state: CampaignState) -> CampaignState:
+    async def _generate_variants(self, campaign_id: str, state: CampaignState) -> CampaignState:
         """Step 3: Generate A/B variants for each segment, then pause."""
         state.iteration += 1
         state.status = "generating"
@@ -261,14 +273,18 @@ class Orchestrator:
             group_a, group_b = state._profiler.ab_split(segment)
             send_time = build_send_time(segment.recommended_send_hour)
 
+            is_retargeting = state.iteration >= 2 and seg_label in state.segments_used
+
             # Generate variant A
             print(f"[orchestrator] Generating variant A for '{seg_label}'...")
             content_a = await generate_content(
+                campaign_id=campaign_id,
                 parsed_brief=state.parsed_brief,
                 segment=segment,
                 variant_label="A",
                 iteration=state.iteration,
                 prev_performance=prev_performance,
+                is_retargeting=is_retargeting,
             )
             state.pending_variants.append({
                 "variant_label": "A",
@@ -283,11 +299,13 @@ class Orchestrator:
             # Generate variant B
             print(f"[orchestrator] Generating variant B for '{seg_label}'...")
             content_b = await generate_content(
+                campaign_id=campaign_id,
                 parsed_brief=state.parsed_brief,
                 segment=segment,
                 variant_label="B",
                 iteration=state.iteration,
                 prev_performance=prev_performance,
+                is_retargeting=is_retargeting,
             )
             state.pending_variants.append({
                 "variant_label": "B",
@@ -304,7 +322,7 @@ class Orchestrator:
               f"Awaiting human approval...")
         return state
 
-    async def _regenerate_with_feedback(self, state: CampaignState) -> CampaignState:
+    async def _regenerate_with_feedback(self, campaign_id: str, state: CampaignState) -> CampaignState:
         """Re-generate content with human feedback appended to the brief."""
         state.status = "generating"
         state.pending_variants = []
@@ -339,12 +357,16 @@ class Orchestrator:
             group_a, group_b = state._profiler.ab_split(segment)
             send_time = build_send_time(segment.recommended_send_hour)
 
+            is_retargeting = state.iteration >= 2 and seg_label in state.segments_used
+
             content_a = await generate_content(
+                campaign_id=campaign_id,
                 parsed_brief=augmented_brief,
                 segment=segment,
                 variant_label="A",
                 iteration=state.iteration,
                 prev_performance=prev_performance,
+                is_retargeting=is_retargeting,
             )
             state.pending_variants.append({
                 "variant_label": "A",
@@ -357,11 +379,13 @@ class Orchestrator:
             })
 
             content_b = await generate_content(
+                campaign_id=campaign_id,
                 parsed_brief=augmented_brief,
                 segment=segment,
                 variant_label="B",
                 iteration=state.iteration,
                 prev_performance=prev_performance,
+                is_retargeting=is_retargeting,
             )
             state.pending_variants.append({
                 "variant_label": "B",

@@ -111,20 +111,26 @@ def _validate_and_fix(parsed: dict) -> dict:
     return parsed
 
 
-def _log_to_db(input_brief: str, output_dict: dict) -> None:
+def _log_to_db(campaign_id: str, input_brief: str, output_dict: dict) -> None:
     """Log the parse result to agent_logs table."""
+    import json as _json
     from backend.db.session import SessionLocal
     from backend.db.models import AgentLog
+
+    msg = _json.dumps({
+        "iteration": 1,
+        "input": {"campaign_brief": input_brief},
+        "output": output_dict,
+        "reasoning": "Structured extraction from campaign brief via LLM",
+    })
 
     db = SessionLocal()
     try:
         log = AgentLog(
-            timestamp=datetime.now(timezone.utc),
+            created_at=datetime.now(timezone.utc),
+            campaign_id=campaign_id,
             agent_name="brief_parser",
-            iteration=1,
-            input_data={"campaign_brief": input_brief},
-            output_data=output_dict,
-            reasoning="Structured extraction from campaign brief via LLM",
+            message=msg,
         )
         db.add(log)
         db.commit()
@@ -133,7 +139,7 @@ def _log_to_db(input_brief: str, output_dict: dict) -> None:
         db.close()
 
 
-async def parse_brief(campaign_brief: str) -> dict:
+async def parse_brief(campaign_id: str, campaign_brief: str) -> dict:
     """
     Parse a plain-English campaign brief into a structured dict.
 
@@ -158,5 +164,5 @@ async def parse_brief(campaign_brief: str) -> dict:
         parsed = json.loads(cleaned)  # let it raise if still bad
 
     result = _validate_and_fix(parsed)
-    _log_to_db(campaign_brief, result)
+    _log_to_db(campaign_id, campaign_brief, result)
     return result

@@ -1,9 +1,8 @@
 # Framework
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.6
 
 # Google ADK + Gemini
-google-adk>=0.1.0
 google-generativeai>=0.7.0
 langchain-google-genai>=2.0.0
 

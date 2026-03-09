@@ -54,9 +54,12 @@ def _fetch_and_cache_spec() -> dict:
 # 2. BUDGET TRACKING (ApiUsageTracker DB table)
 # ═══════════════════════════════════════════════════════════════════════════
 
+from datetime import timedelta
+IST = timezone(timedelta(hours=5, minutes=30))
+
 def _today_str() -> str:
-    """Current date as YYYY-MM-DD string."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    """Current date as YYYY-MM-DD string in IST."""
+    return datetime.now(IST).strftime("%Y-%m-%d")
 
 
 def check_budget() -> int:
@@ -70,8 +73,18 @@ def check_budget() -> int:
     today = _today_str()
     db = SessionLocal()
     try:
-        row = db.query(ApiUsageTracker).filter(ApiUsageTracker.date == today).first()
-        used = row.call_count if row else 0
+        row = db.query(ApiUsageTracker).order_by(ApiUsageTracker.id.desc()).first()
+        if row:
+            if row.date < today:
+                # Reset for the new day in IST
+                row.date = today
+                row.call_count = 0
+                row.last_updated = datetime.now(IST)
+                db.commit()
+            used = row.call_count
+        else:
+            used = 0
+            
         remaining = DAILY_CALL_LIMIT - used
         if remaining <= 0:
             raise RuntimeError(
@@ -94,12 +107,16 @@ def increment_budget() -> int:
     today = _today_str()
     db = SessionLocal()
     try:
-        row = db.query(ApiUsageTracker).filter(ApiUsageTracker.date == today).first()
+        row = db.query(ApiUsageTracker).order_by(ApiUsageTracker.id.desc()).first()
         if row:
-            row.call_count += 1
-            row.last_updated = datetime.now(timezone.utc)
+            if row.date < today:
+                row.date = today
+                row.call_count = 1
+            else:
+                row.call_count += 1
+            row.last_updated = datetime.now(IST)
         else:
-            row = ApiUsageTracker(date=today, call_count=1, last_updated=datetime.now(timezone.utc))
+            row = ApiUsageTracker(date=today, call_count=1, last_updated=datetime.now(IST))
             db.add(row)
         db.commit()
         return row.call_count
@@ -115,11 +132,18 @@ def get_budget_status() -> dict:
     today = _today_str()
     db = SessionLocal()
     try:
-        row = db.query(ApiUsageTracker).filter(ApiUsageTracker.date == today).first()
-        used = row.call_count if row else 0
+        row = db.query(ApiUsageTracker).order_by(ApiUsageTracker.id.desc()).first()
+        if row and row.date < today:
+            row.date = today
+            row.call_count = 0
+            row.last_updated = datetime.now(IST)
+            db.commit()
+            
+        used = row.call_count if (row and row.date == today) else 0
         return {"date": today, "used": used, "remaining": DAILY_CALL_LIMIT - used, "limit": DAILY_CALL_LIMIT}
     finally:
         db.close()
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════

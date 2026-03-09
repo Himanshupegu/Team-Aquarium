@@ -34,7 +34,7 @@ def compute_metrics(report_rows: list[dict]) -> dict:
     clicks = sum(1 for r in report_rows if _is_yes(r.get("EC")))
     open_rate = opens / total
     click_rate = clicks / total
-    composite = round(click_rate * 0.7 + open_rate * 0.3, 4)
+    composite = round(clicks * 0.7 + opens * 0.3, 4)
     return {
         "open_rate": round(open_rate, 4),
         "click_rate": round(click_rate, 4),
@@ -45,7 +45,7 @@ def compute_metrics(report_rows: list[dict]) -> dict:
     }
 
 
-def save_report_to_db(campaign_id: str, report_rows: list[dict]) -> None:
+def save_report_to_db(campaign_id: str, api_campaign_id: str, report_rows: list[dict]) -> None:
     """Save every report row to campaign_reports table. Opens its own DB session."""
     from backend.db.session import SessionLocal
     from backend.db.models import CampaignReport
@@ -55,13 +55,14 @@ def save_report_to_db(campaign_id: str, report_rows: list[dict]) -> None:
         for row in report_rows:
             report = CampaignReport(
                 campaign_id=campaign_id,
+                api_campaign_id=api_campaign_id,
                 customer_id=row.get("customer_id", ""),
                 email_opened=row.get("EO", "N"),
                 email_clicked=row.get("EC", "N"),
             )
             db.add(report)
         db.commit()
-        print(f"[analyst] Saved {len(report_rows)} report rows for campaign {campaign_id}")
+        print(f"[analyst] Saved {len(report_rows)} report rows for campaign {campaign_id} (api_id={api_campaign_id})")
     finally:
         db.close()
 
@@ -71,14 +72,16 @@ def save_report_to_db(campaign_id: str, report_rows: list[dict]) -> None:
 # ═══════════════════════════════════════════════════════════════════════════
 
 async def analyze_performance(
-    sent_campaigns: list[dict],
+    campaign_id: str,
+    campaigns: list[dict],
     iteration: int,
 ) -> dict:
     """
     Fetch reports for all sent campaigns, compute metrics, generate insight.
 
     Args:
-        sent_campaigns: List of dicts from executor, each with:
+        campaign_id: The main campaign ID for this iteration.
+        campaigns: List of dicts from executor, each with:
             campaign_id, variant_label, segment_label, customer_count
         iteration: Campaign iteration number (1-based)
 
@@ -94,35 +97,36 @@ async def analyze_performance(
     """
     results: list[dict] = []
 
-    for campaign in sent_campaigns:
-        campaign_id = campaign["campaign_id"]
+    for campaign in campaigns:
+        variant_campaign_id = campaign.get("api_campaign_id", campaign["campaign_id"])
         variant_label = campaign.get("variant_label", "?")
         segment_label = campaign.get("segment_label", "?")
 
-        print(f"[analyst] Fetching report for campaign {campaign_id} "
+        print(f"[analyst] Fetching report for api_campaign_id={variant_campaign_id} "
               f"(variant={variant_label}, segment={segment_label})")
 
-        # Fetch report from API
-        report = call_tool_by_name("get_report", campaign_id=campaign_id)
+        # Fetch report from API using the API-issued campaign ID
+        report = call_tool_by_name("get_report", campaign_id=variant_campaign_id)
         report_rows = report.get("data", [])
 
         if not report_rows:
-            print(f"[analyst] WARNING: No report data for campaign {campaign_id}")
+            print(f"[analyst] WARNING: No report data for campaign {variant_campaign_id}")
 
-        # Save to DB
-        save_report_to_db(campaign_id, report_rows)
+        # Save to DB with orchestrator's campaign_id and the api_campaign_id
+        save_report_to_db(campaign_id, variant_campaign_id, report_rows)
 
         # Compute metrics
         metrics = compute_metrics(report_rows)
         result_entry = {
             "campaign_id": campaign_id,
+            "api_campaign_id": variant_campaign_id,
             "variant_label": variant_label,
             "segment_label": segment_label,
             **metrics,
         }
         results.append(result_entry)
 
-        print(f"[analyst] Campaign {campaign_id}: "
+        print(f"[analyst] Campaign {variant_campaign_id}: "
               f"open_rate={metrics['open_rate']}, click_rate={metrics['click_rate']}, "
               f"composite={metrics['composite_score']}")
 
@@ -143,7 +147,7 @@ async def analyze_performance(
     # Generate LLM insight
     analyst_summary = await _generate_insight(results, best, worst, iteration)
 
-    output = {
+    final_output = {
         "results": results,
         "best_variant": best,
         "worst_variant": worst,
@@ -153,9 +157,9 @@ async def analyze_performance(
     }
 
     # Log to DB
-    _log_to_db(iteration, output)
+    _log_to_db(campaign_id, iteration, final_output)
 
-    return output
+    return final_output
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -209,28 +213,31 @@ Keep your response to 2-3 sentences maximum."""
 # LOGGING
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _log_to_db(iteration: int, output: dict) -> None:
+def _log_to_db(campaign_id: str, iteration: int, output: dict) -> None:
     """Log the analysis results to agent_logs."""
+    import json as _json
     from backend.db.session import SessionLocal
     from backend.db.models import AgentLog
+
+    msg = _json.dumps({
+        "iteration": iteration,
+        "campaign_count": len(output.get("results", [])),
+        "overall_open_rate": output["overall_open_rate"],
+        "overall_click_rate": output["overall_click_rate"],
+        "best_variant": output["best_variant"].get("variant_label", "?"),
+        "worst_variant": output["worst_variant"].get("variant_label", "?"),
+        "result_count": len(output["results"]),
+        "analyst_summary": output.get("analyst_summary", ""),
+        "reasoning": f"Analyzed {len(output.get('results', []))} variants. Overall open rate: {output['overall_open_rate']:.1%}, click rate: {output['overall_click_rate']:.1%}.",
+    })
 
     db = SessionLocal()
     try:
         log = AgentLog(
-            timestamp=datetime.now(timezone.utc),
+            created_at=datetime.now(timezone.utc),
+            campaign_id=campaign_id,
             agent_name="analyst",
-            iteration=iteration,
-            input_data={
-                "campaign_count": len(output.get("results", [])),
-            },
-            output_data={
-                "overall_open_rate": output["overall_open_rate"],
-                "overall_click_rate": output["overall_click_rate"],
-                "best_variant": output["best_variant"].get("variant_label", "?"),
-                "worst_variant": output["worst_variant"].get("variant_label", "?"),
-                "result_count": len(output["results"]),
-            },
-            reasoning=output.get("analyst_summary", ""),
+            message=msg,
         )
         db.add(log)
         db.commit()

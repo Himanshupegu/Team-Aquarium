@@ -1,0 +1,1 @@
+[(0, 'id', 'INTEGER', 1, None, 1), (1, 'timestamp', 'DATETIME', 0, None, 0), (2, 'agent_name', 'VARCHAR', 1, None, 0), (3, 'iteration', 'INTEGER', 1, None, 0), (4, 'input_data', 'JSON', 0, None, 0), (5, 'output_data', 'JSON', 0, None, 0), (6, 'reasoning', 'TEXT', 0, None, 0)]

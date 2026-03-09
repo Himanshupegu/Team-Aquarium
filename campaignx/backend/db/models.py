@@ -56,11 +56,13 @@ class CampaignReport(Base):
     __tablename__ = "campaign_reports"
 
     id              = Column(Integer, primary_key=True, autoincrement=True)
-    campaign_id     = Column(String, nullable=False, index=True)
+    campaign_id     = Column(String, nullable=False, index=True)  # orchestrator campaign ID
+    api_campaign_id = Column(String, nullable=True, index=True)   # API-returned campaign ID
     customer_id     = Column(String, nullable=False)
     email_opened    = Column(String, nullable=False)     # "Y" or "N"
     email_clicked   = Column(String, nullable=False)     # "Y" or "N"
     fetched_at      = Column(DateTime, default=datetime.utcnow)
+
 
 
 class AgentLog(Base):
@@ -68,12 +70,10 @@ class AgentLog(Base):
     __tablename__ = "agent_logs"
 
     id          = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp   = Column(DateTime, default=datetime.utcnow, index=True)
+    campaign_id = Column(String, nullable=False)
     agent_name  = Column(String, nullable=False)
-    iteration   = Column(Integer, nullable=False)
-    input_data  = Column(JSON)
-    output_data = Column(JSON)
-    reasoning   = Column(Text)
+    message     = Column(Text, nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
 
 
 class ApiUsageTracker(Base):

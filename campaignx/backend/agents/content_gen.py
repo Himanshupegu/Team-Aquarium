@@ -77,6 +77,7 @@ def _build_prompt(
     iteration: int,
     prev_performance: list[dict],
     validation_errors: list[str] | None = None,
+    is_retargeting: bool = False,
 ) -> str:
     """Build the LLM prompt for email content generation."""
 
@@ -110,6 +111,12 @@ def _build_prompt(
             "Try a DIFFERENT approach this time: vary subject length, emoji density, "
             "CTA placement, or body length compared to what was tried before.\n"
         )
+        if is_retargeting:
+            perf_context += (
+                "\nThis segment was previously contacted but engagement was low. Generate "
+                "a completely different subject line and email opening hook from the previous attempt. "
+                "Try a different angle, tone, and value proposition to convert customers who did not engage before.\n"
+            )
 
     prompt = f"""You are an expert email copywriter for SuperBFSI, an Indian BFSI company.
 
@@ -163,28 +170,30 @@ def _strip_markdown_fences(text: str) -> str:
     return text.strip()
 
 
-def _log_to_db(segment_label: str, variant_label: str, iteration: int, result: dict) -> None:
+def _log_to_db(campaign_id: str, segment_label: str, variant_label: str, iteration: int, result: dict) -> None:
     """Log the generation result to agent_logs."""
+    import json as _json
     from backend.db.session import SessionLocal
     from backend.db.models import AgentLog
+
+    msg = _json.dumps({
+        "iteration": iteration,
+        "segment": segment_label,
+        "variant": variant_label,
+        "subject": result["subject"],
+        "body_preview": result["body"][:200],
+        "strategy_notes": result["strategy_notes"],
+        "reasoning": f"Generated variant {variant_label} for segment '{segment_label}' "
+                     f"(iteration {iteration})",
+    })
 
     db = SessionLocal()
     try:
         log = AgentLog(
-            timestamp=datetime.now(timezone.utc),
+            created_at=datetime.now(timezone.utc),
+            campaign_id=campaign_id,
             agent_name="content_gen",
-            iteration=iteration,
-            input_data={
-                "segment": segment_label,
-                "variant": variant_label,
-            },
-            output_data={
-                "subject": result["subject"],
-                "body_preview": result["body"][:200],
-                "strategy_notes": result["strategy_notes"],
-            },
-            reasoning=f"Generated variant {variant_label} for segment '{segment_label}' "
-                      f"(iteration {iteration})",
+            message=msg,
         )
         db.add(log)
         db.commit()
@@ -194,11 +203,13 @@ def _log_to_db(segment_label: str, variant_label: str, iteration: int, result: d
 
 
 async def generate_content(
+    campaign_id: str,
     parsed_brief: dict,
     segment: Segment,
     variant_label: str,
     iteration: int,
-    prev_performance: list[dict],
+    prev_performance: list[dict] = None,
+    is_retargeting: bool = False,
 ) -> dict:
     """
     Generate a personalised email subject + body for one segment.
@@ -216,7 +227,9 @@ async def generate_content(
     cta_url = parsed_brief.get("cta_url", "") or ""
 
     # ── Attempt 1 ────────────────────────────────────────────────────────
-    prompt = _build_prompt(parsed_brief, segment, variant_label, iteration, prev_performance)
+    prompt = _build_prompt(
+        parsed_brief, segment, variant_label, iteration, prev_performance, is_retargeting=is_retargeting
+    )
     raw = await llm_router.call(prompt, task="content_gen", max_tokens=1500)
     cleaned = _strip_markdown_fences(raw)
 
@@ -242,7 +255,7 @@ async def generate_content(
         # ── Attempt 2 — retry with errors ────────────────────────────────
         retry_prompt = _build_prompt(
             parsed_brief, segment, variant_label, iteration, prev_performance,
-            validation_errors=errors,
+            validation_errors=errors, is_retargeting=is_retargeting,
         )
         raw = await llm_router.call(retry_prompt, task="content_gen", max_tokens=1500)
         cleaned = _strip_markdown_fences(raw)
@@ -269,7 +282,7 @@ async def generate_content(
         "strategy_notes": strategy_notes,
     }
 
-    _log_to_db(segment.label, variant_label, iteration, final)
+    _log_to_db(campaign_id, segment.label, variant_label, iteration, final)
     print(f"[content_gen] Generated variant {variant_label} for '{segment.label}' "
           f"(subject: {len(subject)} chars, body: {len(body)} chars)")
     return final

@@ -283,7 +283,10 @@ CUSTOMER DATABASE SCHEMA (from live data — {total} customers total):
 Your job: Define the best customer segments for this campaign.
 
 Rules:
-- Create 4 to 9 segments based on what the data actually supports
+- Create 5 to 7 segments based on what the data actually supports
+- The catch_all segment must contain fewer than 200 customers
+- No single segment should contain more than 40% of the total customer base (max 400 customers)
+- If a natural segment would exceed this, split into two more specific sub-segments
 - Segments must be mutually exclusive and collectively exhaustive (cover all customers)
 - The last segment must always be a catch-all for anyone not in earlier segments
 - Base segments on the actual field values and distributions shown in the schema above
@@ -434,7 +437,7 @@ Return ONLY a JSON array. No explanation, no markdown fences."""
     # PUBLIC API
     # ══════════════════════════════════════════════════════════════════════
 
-    async def get_all_segments(self, parsed_brief: dict) -> dict[str, Segment]:
+    async def get_all_segments(self, campaign_id: str, campaign_brief: dict) -> dict[str, Segment]:
         """
         Main entry point. Runs all three stages in order:
           1. Analyze cohort schema (Python)
@@ -446,13 +449,13 @@ Return ONLY a JSON array. No explanation, no markdown fences."""
         schema = self.analyze_cohort_schema()
 
         # Stage 2
-        strategy = await self.generate_segment_strategy(parsed_brief, schema)
+        strategy = await self.generate_segment_strategy(campaign_brief, schema)
 
         # Stage 3
         segments = self.execute_segmentation(strategy)
 
         # Log to DB
-        self._log_to_db(schema, strategy, segments)
+        self._log_to_db(campaign_id, schema, strategy, segments)
 
         return segments
 
@@ -483,8 +486,9 @@ Return ONLY a JSON array. No explanation, no markdown fences."""
 
     # ── Logging ───────────────────────────────────────────────────────────
 
-    def _log_to_db(self, schema: dict, strategy: list[dict], segments: dict[str, Segment]) -> None:
+    def _log_to_db(self, campaign_id: str, schema: dict, strategy: list[dict], segments: dict[str, Segment]) -> None:
         """Log the full profiler run to agent_logs."""
+        import json as _json
         from backend.db.session import SessionLocal
         from backend.db.models import AgentLog
 
@@ -493,23 +497,24 @@ Return ONLY a JSON array. No explanation, no markdown fences."""
             for label, seg in segments.items()
         }
 
+        msg = _json.dumps({
+            "iteration": 1,
+            "schema_fields": list(schema.get("fields", {}).keys()),
+            "total_customers": schema.get("total_customers", 0),
+            "strategy": strategy,
+            "segment_sizes": segment_summary,
+            "reasoning": f"Hybrid segmentation: {len(schema.get('fields', {}))} fields analyzed, "
+                         f"{len(strategy)} segments defined by LLM, "
+                         f"{sum(s.size for s in segments.values())} customers assigned",
+        })
+
         db = SessionLocal()
         try:
             log = AgentLog(
-                timestamp=datetime.now(timezone.utc),
+                created_at=datetime.now(timezone.utc),
+                campaign_id=campaign_id,
                 agent_name="profiler",
-                iteration=1,
-                input_data={
-                    "schema_fields": list(schema.get("fields", {}).keys()),
-                    "total_customers": schema.get("total_customers", 0),
-                },
-                output_data={
-                    "strategy": strategy,
-                    "segment_sizes": segment_summary,
-                },
-                reasoning=f"Hybrid segmentation: {len(schema.get('fields', {}))} fields analyzed, "
-                          f"{len(strategy)} segments defined by LLM, "
-                          f"{sum(s.size for s in segments.values())} customers assigned",
+                message=msg,
             )
             db.add(log)
             db.commit()

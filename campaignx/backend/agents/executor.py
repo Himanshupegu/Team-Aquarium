@@ -61,8 +61,7 @@ def sanitize_customer_ids(customer_ids: list[str], cohort_ids: set[str]) -> list
 def save_campaign_to_db(
     campaign_id: str,
     iteration: int,
-    variant_label: str,
-    segment_label: str,
+    segment_labels: list[str],
     subject: str,
     body: str,
     customer_ids: list[str],
@@ -75,20 +74,29 @@ def save_campaign_to_db(
 
     db = SessionLocal()
     try:
-        campaign = Campaign(
-            campaign_id=campaign_id,
-            iteration=iteration,
-            variant_label=variant_label,
-            segment_label=segment_label,
-            subject=subject,
-            body=body,
-            customer_ids=customer_ids,
-            send_time=send_time,
-            strategy_notes=strategy_notes,
-        )
-        db.add(campaign)
-        db.commit()
-        print(f"[executor] Saved campaign {campaign_id} to DB")
+        # Check if campaign already exists (e.g. from a previous iteration)
+        existing = db.query(Campaign).filter(Campaign.campaign_id == campaign_id).first()
+        if existing:
+            # Update existing campaign with combined info
+            existing.iteration = iteration
+            existing.customer_ids = list(set((existing.customer_ids or []) + customer_ids))
+            db.commit()
+            print(f"[executor] Updated existing campaign {campaign_id} in DB")
+        else:
+            campaign = Campaign(
+                campaign_id=campaign_id,
+                iteration=iteration,
+                variant_label="all",
+                segment_label=", ".join(segment_labels),
+                subject=subject,
+                body=body,
+                customer_ids=customer_ids,
+                send_time=send_time,
+                strategy_notes=strategy_notes,
+            )
+            db.add(campaign)
+            db.commit()
+            print(f"[executor] Saved campaign {campaign_id} to DB")
     finally:
         db.close()
 
@@ -98,6 +106,7 @@ def save_campaign_to_db(
 # ═══════════════════════════════════════════════════════════════════════════
 
 async def execute_campaigns(
+    campaign_id: str,
     variants: list[dict],
     iteration: int,
     cohort_ids: set[str],
@@ -106,6 +115,7 @@ async def execute_campaigns(
     Send approved campaign variants via the CampaignX API.
 
     Args:
+        campaign_id: The main campaign ID for this execution.
         variants: List of dicts, each with keys:
             variant_label, segment_label, subject, body,
             customer_ids (list), send_time (str), strategy_notes
@@ -118,6 +128,8 @@ async def execute_campaigns(
     """
     sent: list[dict] = []
     failed: list[dict] = []
+    all_customer_ids: list[str] = []
+    segment_labels: list[str] = []
 
     for variant in variants:
         variant_label = variant.get("variant_label", "?")
@@ -159,39 +171,45 @@ async def execute_campaigns(
                 failed.append({"variant_label": variant_label, "error": str(error_msg)})
                 continue
 
-            campaign_id = result.get("campaign_id", "")
-            if not campaign_id:
+            api_campaign_id = result.get("campaign_id", "")
+            if not api_campaign_id:
                 print(f"[executor] WARNING: No campaign_id in response for {variant_label}")
                 failed.append({"variant_label": variant_label, "error": "No campaign_id in response"})
                 continue
 
-            # Save to DB
-            save_campaign_to_db(
-                campaign_id=campaign_id,
-                iteration=iteration,
-                variant_label=variant_label,
-                segment_label=segment_label,
-                subject=subject,
-                body=body,
-                customer_ids=clean_ids,
-                send_time=send_time,
-                strategy_notes=strategy_notes,
-            )
+            all_customer_ids.extend(clean_ids)
+            if segment_label not in segment_labels:
+                segment_labels.append(segment_label)
 
             sent.append({
-                "campaign_id": campaign_id,
+                "campaign_id": campaign_id,          # orchestrator's ID
+                "api_campaign_id": api_campaign_id,  # API-returned ID for reports
                 "variant_label": variant_label,
                 "segment_label": segment_label,
                 "customer_count": len(clean_ids),
             })
-            print(f"[executor] ✓ Campaign {campaign_id} sent successfully")
+            print(f"[executor] ✓ Campaign sent (api_id={api_campaign_id})")
 
         except Exception as e:
             print(f"[executor] ERROR sending variant {variant_label}: {type(e).__name__}: {e}")
             failed.append({"variant_label": variant_label, "error": str(e)})
 
+    # Save one Campaign row for this orchestrator run
+    if sent:
+        first_variant = variants[0] if variants else {}
+        save_campaign_to_db(
+            campaign_id=campaign_id,
+            iteration=iteration,
+            segment_labels=segment_labels,
+            subject=first_variant.get("subject", ""),
+            body=first_variant.get("body", ""),
+            customer_ids=all_customer_ids,
+            send_time=first_variant.get("send_time", ""),
+            strategy_notes=first_variant.get("strategy_notes", ""),
+        )
+
     # Log summary to agent_logs
-    _log_to_db(iteration, sent, failed)
+    _log_to_db(campaign_id, iteration, sent, failed)
 
     print(f"[executor] Execution complete — {len(sent)} sent, {len(failed)} failed")
     return {"sent": sent, "failed": failed}
@@ -199,26 +217,30 @@ async def execute_campaigns(
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
-def _log_to_db(iteration: int, sent: list[dict], failed: list[dict]) -> None:
+def _log_to_db(campaign_id: str, iteration: int, sent: list[dict], failed: list[dict]) -> None:
     """Log the execution summary to agent_logs."""
+    import json as _json
     from backend.db.session import SessionLocal
     from backend.db.models import AgentLog
+
+    campaign_ids = [s.get("api_campaign_id", s["campaign_id"]) for s in sent]
+    msg = _json.dumps({
+        "iteration": iteration,
+        "variant_count": len(sent) + len(failed),
+        "sent_count": len(sent),
+        "failed_count": len(failed),
+        "campaign_ids": campaign_ids,
+        "api_campaign_ids": campaign_ids,
+        "reasoning": f"Executed {len(sent)} campaigns successfully, {len(failed)} failed",
+    })
 
     db = SessionLocal()
     try:
         log = AgentLog(
-            timestamp=datetime.now(timezone.utc),
+            created_at=datetime.now(timezone.utc),
+            campaign_id=campaign_id,
             agent_name="executor",
-            iteration=iteration,
-            input_data={
-                "variant_count": len(sent) + len(failed),
-            },
-            output_data={
-                "sent_count": len(sent),
-                "failed_count": len(failed),
-                "campaign_ids": [s["campaign_id"] for s in sent],
-            },
-            reasoning=f"Executed {len(sent)} campaigns successfully, {len(failed)} failed",
+            message=msg,
         )
         db.add(log)
         db.commit()

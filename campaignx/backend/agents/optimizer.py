@@ -17,6 +17,7 @@ from backend.llm.router import llm_router
 # ═══════════════════════════════════════════════════════════════════════════
 
 async def decide_next_iteration(
+    campaign_id: str,
     all_results: list[dict],
     segments_used: list[str],
     all_segments: dict,
@@ -28,6 +29,7 @@ async def decide_next_iteration(
     Analyze cumulative results and decide whether to continue the campaign loop.
 
     Args:
+        campaign_id: The ID of the current campaign.
         all_results: Cumulative results across all iterations
                      (each entry has composite_score, variant_label, segment_label, etc.)
         segments_used: Segment labels already targeted in previous iterations
@@ -55,7 +57,7 @@ async def decide_next_iteration(
             iteration, True, "max_iterations_reached",
             segments_used, [], all_results,
         )
-        _log_to_db(iteration, result)
+        _log_to_db(campaign_id, iteration, result)
         return result
 
     # ── Continue: select next segments ──────────────────────────────────
@@ -76,7 +78,7 @@ async def decide_next_iteration(
         "stop_reason": None,
     }
 
-    _log_to_db(iteration, result)
+    _log_to_db(campaign_id, iteration, result)
     return result
 
 
@@ -106,9 +108,9 @@ def _select_next_segments(
 
     next_labels = [label for label, _ in unused[:max_pick]]
 
-    # If all used but we haven't hit max_iterations, re-target worst performer
+    # If all used but we haven't hit max_iterations, re-target segment with most unconverted customers
     if not next_labels and all_results:
-        worst = min(all_results, key=lambda r: r.get("composite_score", 999))
+        worst = max(all_results, key=lambda r: r.get("total_sent", 0) - (r.get("clicks", 0) + r.get("opens", 0)))
         worst_label = worst.get("segment_label", "")
         if worst_label and worst_label in all_segments:
             next_labels = [worst_label]
@@ -181,27 +183,29 @@ def _build_stop_result(reason: str, detail: str) -> dict:
     }
 
 
-def _log_to_db(iteration: int, result: dict) -> None:
+def _log_to_db(campaign_id: str, iteration: int, result: dict) -> None:
     """Log optimizer decision to agent_logs."""
+    import json as _json
     from backend.db.session import SessionLocal
     from backend.db.models import AgentLog
+
+    msg = _json.dumps({
+        "iteration": iteration,
+        "should_continue": result["should_continue"],
+        "next_segments": result["next_segments"],
+        "stop_reason": result.get("stop_reason"),
+        "optimization_notes": result["optimization_notes"][:500],
+        "reasoning": f"{'Continuing' if result['should_continue'] else 'Stopping'}: "
+                     f"{result.get('stop_reason', 'targeting ' + str(result['next_segments']))}",
+    })
 
     db = SessionLocal()
     try:
         log = AgentLog(
-            timestamp=datetime.now(timezone.utc),
+            created_at=datetime.now(timezone.utc),
+            campaign_id=campaign_id,
             agent_name="optimizer",
-            iteration=iteration,
-            input_data={
-                "should_continue": result["should_continue"],
-                "next_segments": result["next_segments"],
-                "stop_reason": result.get("stop_reason"),
-            },
-            output_data={
-                "optimization_notes": result["optimization_notes"][:500],
-            },
-            reasoning=f"{'Continuing' if result['should_continue'] else 'Stopping'}: "
-                      f"{result.get('stop_reason', 'targeting ' + str(result['next_segments']))}",
+            message=msg,
         )
         db.add(log)
         db.commit()
