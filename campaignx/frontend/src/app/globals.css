@@ -1,1 +1,3 @@
-/* Global styles — Phase 3 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
