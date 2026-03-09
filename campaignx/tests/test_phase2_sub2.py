@@ -18,7 +18,7 @@ REQUIRED_KEYS = [
 
 async def test_1_returns_dict():
     print("\n--- TEST 1: Returns a dict with all required keys ---")
-    result = await parse_brief(BRIEF)
+    result = await parse_brief("test-id", BRIEF)
     print("Result:", result)
     assert isinstance(result, dict), "FAIL: result is not a dict"
     for key in REQUIRED_KEYS:
@@ -27,7 +27,7 @@ async def test_1_returns_dict():
 
 async def test_2_values_make_sense():
     print("\n--- TEST 2: Values are correct types and sensible ---")
-    result = await parse_brief(BRIEF)
+    result = await parse_brief("test-id", BRIEF)
     assert isinstance(result["product_name"], str) and len(result["product_name"]) > 0
     assert isinstance(result["special_offers"], list) and len(result["special_offers"]) > 0, \
         "FAIL: special_offers should have at least 1 item (the female senior citizen bonus)"

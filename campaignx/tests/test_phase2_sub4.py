@@ -16,7 +16,7 @@ BRIEF = (
 CTA_URL = "https://superbfsi.com/xdeposit/explore/"
 
 async def setup():
-    parsed = await parse_brief(BRIEF)
+    parsed = await parse_brief("test-id", BRIEF)
     result = call_tool_by_name("get_customer_cohort")
     cohort = result["data"]
     profiler = CustomerProfiler(cohort)

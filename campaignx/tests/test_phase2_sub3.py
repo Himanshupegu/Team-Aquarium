@@ -18,7 +18,7 @@ async def load_cohort_and_segments():
     from backend.agents.brief_parser import parse_brief
     result = call_tool_by_name("get_customer_cohort")
     cohort = result["data"]
-    brief = await parse_brief(
+    brief = await parse_brief("test-id", 
         "Run email campaign for XDeposit from SuperBFSI, 1% higher returns than competitors. "
         "Additional 0.25% for female senior citizens. Include https://superbfsi.com/xdeposit/explore/"
     )
