@@ -49,7 +49,8 @@ class Campaign(Base):
     send_time       = Column(String, nullable=False)
     strategy_notes  = Column(Text)
     created_at      = Column(DateTime, default=datetime.utcnow)
-
+    segments        = Column(JSON, nullable=True)
+    all_results     = Column(JSON, nullable=True)
 
 class CampaignReport(Base):
     """Per-customer EO/EC data from get_report."""
@@ -62,6 +63,7 @@ class CampaignReport(Base):
     email_opened    = Column(String, nullable=False)     # "Y" or "N"
     email_clicked   = Column(String, nullable=False)     # "Y" or "N"
     fetched_at      = Column(DateTime, default=datetime.utcnow)
+    iteration       = Column(Integer, nullable=True)
 
 
 

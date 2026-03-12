@@ -56,8 +56,9 @@ def _fix_content_programmatically(subject: str, body: str, cta_url: str) -> tupl
 
     # Ensure CTA URL in body — only if cta_url is provided
     if cta_url and cta_url not in body:
-        max_body_before_url = MAX_BODY_CHARS - 1 - len(cta_url)  # 1 for \n
-        body = body[:max_body_before_url] + "\n" + cta_url
+        fallback_button = f'\n<br><br><a href="{cta_url}" style="display: inline-block; padding: 10px 20px; font-weight: bold; text-decoration: none; color: #ffffff; background-color: #007bff; border-radius: 5px;">Claim Your Offer</a>'
+        max_body_before_url = MAX_BODY_CHARS - len(fallback_button)
+        body = body[:max_body_before_url] + fallback_button
 
     # Truncate body if still over limit (e.g. CTA was already present but body too long)
     if len(body) > MAX_BODY_CHARS:
@@ -82,16 +83,29 @@ def _build_prompt(
     """Build the LLM prompt for email content generation."""
 
     # Variant-specific instructions
-    if variant_label.upper() == "A":
-        variant_instruction = (
-            "VARIANT A: Lead with data and rational benefit. Use a more formal, "
-            "authoritative tone. Emphasize numbers, facts, and logical reasons to act."
-        )
+    if getattr(segment, "size", 0) > 100:
+        if variant_label.upper() == "A":
+            variant_instruction = (
+                "VARIANT A (Rational/Benefit-driven): Lead with specific numbers — e.g. '1% higher returns than competitors', "
+                "'additional 0.25% for female senior citizens' if applicable. Use bullet points listing concrete financial benefits. "
+                "Tone should match the segment persona perfectly. End with the HTML anchor CTA."
+            )
+        else:
+            variant_instruction = (
+                "VARIANT B (Urgency/FOMO-driven): Open with a fear-of-missing-out hook specific to the persona "
+                "(e.g. wealth-building urgency for high earners, retirement security urgency for seniors). "
+                "NO bullet points — use short punchy paragraphs only. Create strong time pressure with phrases "
+                "like 'Start growing your savings today'. End with the HTML anchor CTA."
+            )
     else:
-        variant_instruction = (
-            "VARIANT B: Lead with emotion and aspiration. Use a more conversational, "
-            "warm tone. Emphasize dreams, lifestyle improvement, and personal stories."
-        )
+        if variant_label.upper() == "A":
+            variant_instruction = (
+                "VARIANT A (Rational): use bullet points to list 2-3 concrete benefits, then CTA"
+            )
+        else:
+            variant_instruction = (
+                "VARIANT B (Emotional): use 2 short punchy paragraphs with emotional hook, then CTA"
+            )
 
     # Special offers
     special_offers = parsed_brief.get("special_offers", [])
@@ -134,12 +148,15 @@ RECOMMENDED TONE: {segment.recommended_tone}
 {variant_instruction}
 {perf_context}
 STRICT RULES:
-1. subject: English text ONLY, NO URLs, NO emojis, max {MAX_SUBJECT_CHARS} characters
-2. body: English text, emojis allowed ✅, HTML tags <b>, <i>, <u> allowed
-3. If a CTA URL is provided above, include it exactly once in the body. If no CTA URL is provided, do not include any URL.
-4. body max {MAX_BODY_CHARS} characters
-5. Do NOT use any other URLs in subject or body
-6. Make the email feel personal and relevant to this specific segment
+1. subject: English text ONLY, NO URLs, NO emojis, max {MAX_SUBJECT_CHARS} characters. Must be under 50 characters, curiosity-driving or benefit-stating, no generic phrases like "Earn Rewards with NeoSavings".
+2. body: English text, HTML tags <b>, <i>, <u>, <a>, <br> allowed. Keep the email body short and scannable — maximum 150 words AND max {MAX_BODY_CHARS} characters, using short paragraphs of 1-2 sentences each. IMPORTANT: Use <br><br> tags for paragraph breaks and <br> for line breaks. Do NOT use \n or newline escape sequences — only HTML <br> tags!
+3. Open with a strong hook line directly relevant to the segment persona (e.g. for families_with_kids, lead with the child's financial future angle).
+4. State the core benefit (e.g., ₹300 per referral) within the first 2 lines — don't bury it.
+5. If CTA URL is provided, include it exactly once. You MUST format it strictly as a beautiful HTML button using inline CSS, with <br><br> before and after the button. The button text inside the tag must be concise (2-5 words), use strong action verbs (avoid 'Click Here'), and use personalized pronouns (e.g. 'Claim My Reward'). Example: <br><br><a href="THE_CTA_URL" style="display: inline-block; padding: 10px 20px; font-weight: bold; text-decoration: none; color: #ffffff; background-color: #007bff; border-radius: 5px;">Action Phrase Here</a><br><br>. Do NOT paste the raw URL as plain text!
+6. For bullet points, use the HTML bullet character • with <br> before each bullet. Do NOT use markdown-style bullets like * or -.
+7. Do NOT use any other URLs in subject or body.
+8. Use 2-3 emojis maximum as visual anchors at the start of key lines, not mid-sentence.
+9. Make the email feel personal and relevant to this specific segment.
 
 Return ONLY a JSON object with these keys:
   "subject": the email subject line
@@ -162,11 +179,20 @@ No markdown fences, no explanation, ONLY the JSON object."""
 # MAIN FUNCTION
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _strip_markdown_fences(text: str) -> str:
-    """Remove accidental ```json ... ``` wrappers."""
+def _clean_json_string(text: str) -> str:
+    """Aggressive cleaning for JSON parsing: strip markdown, replace quotes, remove control chars."""
     text = text.strip()
+    # Strip markdown fences
     text = re.sub(r"^```(?:json)?\s*\n?", "", text)
     text = re.sub(r"\n?```\s*$", "", text)
+    
+    # Replace curly quotes and apostrophes
+    text = text.replace('“', '"').replace('”', '"')
+    text = text.replace('‘', "'").replace('’', "'")
+    
+    # Regex to remove control characters (except newline and tab)
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
+    
     return text.strip()
 
 
@@ -181,7 +207,7 @@ def _log_to_db(campaign_id: str, segment_label: str, variant_label: str, iterati
         "segment": segment_label,
         "variant": variant_label,
         "subject": result["subject"],
-        "body_preview": result["body"][:200],
+        "body": result["body"],
         "strategy_notes": result["strategy_notes"],
         "reasoning": f"Generated variant {variant_label} for segment '{segment_label}' "
                      f"(iteration {iteration})",
@@ -231,15 +257,20 @@ async def generate_content(
         parsed_brief, segment, variant_label, iteration, prev_performance, is_retargeting=is_retargeting
     )
     raw = await llm_router.call(prompt, task="content_gen", max_tokens=1500)
-    cleaned = _strip_markdown_fences(raw)
+    cleaned = _clean_json_string(raw)
 
     try:
         result = json.loads(cleaned)
     except json.JSONDecodeError as e:
         print(f"[content_gen] JSON parse failed: {e}. Retrying...")
-        retry_prompt = prompt + f"\n\nJSON parse error: {e}\nReturn ONLY valid JSON."
+        retry_prompt = prompt + (
+            f"\n\nJSON parse error: {e}\n"
+            "Your previous response contained invalid JSON. Return ONLY valid JSON with no special characters, "
+            "no curly quotes, no apostrophes in values — use straight quotes only. "
+            "Escape any quotes inside string values with backslash."
+        )
         raw = await llm_router.call(retry_prompt, task="content_gen", max_tokens=1500)
-        cleaned = _strip_markdown_fences(raw)
+        cleaned = _clean_json_string(raw)
         result = json.loads(cleaned)
 
     subject = result.get("subject", "")
@@ -258,7 +289,7 @@ async def generate_content(
             validation_errors=errors, is_retargeting=is_retargeting,
         )
         raw = await llm_router.call(retry_prompt, task="content_gen", max_tokens=1500)
-        cleaned = _strip_markdown_fences(raw)
+        cleaned = _clean_json_string(raw)
 
         try:
             result = json.loads(cleaned)

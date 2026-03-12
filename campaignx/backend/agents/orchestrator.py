@@ -64,6 +64,73 @@ def save_state(campaign_id: str, state: CampaignState):
     _active_states[campaign_id] = state
 
 
+def save_campaign_segments(campaign_id: str, all_segments: dict):
+    from backend.db.session import SessionLocal
+    from backend.db.models import Campaign
+    import json
+
+    db = SessionLocal()
+    try:
+        segments_data = {}
+        for label, seg in all_segments.items():
+            if hasattr(seg, "label"):
+                segments_data[label] = {
+                    "label": seg.label,
+                    "description": getattr(seg, "description", ""),
+                    "size": getattr(seg, "size", 0),
+                    "priority": getattr(seg, "priority", 0),
+                    "is_catch_all": getattr(seg, "is_catch_all", False),
+                    "recommended_tone": getattr(seg, "recommended_tone", ""),
+                    "recommended_send_hour": getattr(seg, "recommended_send_hour", 10),
+                    "key_usp": getattr(seg, "key_usp", ""),
+                    "persona_hint": getattr(seg, "persona_hint", ""),
+                }
+            elif isinstance(seg, dict):
+                segments_data[label] = seg
+            else:
+                # Fallback: save at least the label so segment count is accurate
+                segments_data[label] = {"label": label, "size": 0}
+
+        existing = db.query(Campaign).filter(Campaign.campaign_id == campaign_id).first()
+        if existing:
+            existing.segments = segments_data
+            db.commit()
+            print(f"[orchestrator] Updated existing campaign {campaign_id} segments in DB")
+        else:
+            campaign = Campaign(
+                campaign_id=campaign_id,
+                iteration=0,
+                variant_label="",
+                segment_label="",
+                subject="",
+                body="",
+                customer_ids=[],
+                send_time="",
+                strategy_notes="",
+                segments=segments_data
+            )
+            db.add(campaign)
+            db.commit()
+            print(f"[orchestrator] Saved campaign {campaign_id} segments to DB")
+    finally:
+        db.close()
+
+
+def save_campaign_results(campaign_id: str, all_results: list[dict]):
+    from backend.db.session import SessionLocal
+    from backend.db.models import Campaign
+
+    db = SessionLocal()
+    try:
+        existing = db.query(Campaign).filter(Campaign.campaign_id == campaign_id).first()
+        if existing:
+            existing.all_results = all_results
+            db.commit()
+            print(f"[orchestrator] Updated existing campaign {campaign_id} all_results in DB")
+    finally:
+        db.close()
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # ORCHESTRATOR
 # ═══════════════════════════════════════════════════════════════════════════
@@ -113,6 +180,9 @@ class Orchestrator:
             state.all_segments = await profiler.get_all_segments(campaign_id, state.parsed_brief)
             state._profiler = profiler
             print(f"[orchestrator] {len(state.all_segments)} segments created")
+
+            # Save segments to DB immediately for persistence
+            save_campaign_segments(campaign_id, state.all_segments)
 
             # Pick initial segments: all segments for iteration 1 coverage
             sorted_segs = sorted(
@@ -192,6 +262,10 @@ class Orchestrator:
                 for r in analysis["results"]:
                     r["iteration"] = state.iteration
                 state.all_results.extend(analysis["results"])
+                
+                # Save results to DB
+                save_campaign_results(campaign_id, state.all_results)
+                
                 print(f"[orchestrator] Analysis complete: "
                       f"open_rate={analysis['overall_open_rate']}, "
                       f"click_rate={analysis['overall_click_rate']}")
@@ -263,29 +337,114 @@ class Orchestrator:
                 for r in state.all_results
             ]
 
-        for seg_label in state.next_segments:
+        failed_segments: list[str] = []   # collect failures for retry at end
+
+        for seg_idx, seg_label in enumerate(state.next_segments):
             segment = state.all_segments.get(seg_label)
             if not segment:
                 print(f"[orchestrator] WARNING: Segment '{seg_label}' not found, skipping")
                 continue
 
-            # A/B split
-            group_a, group_b = state._profiler.ab_split(segment)
-            send_time = build_send_time(segment.recommended_send_hour)
+            # Delay between segments to avoid LLM rate limiting (4s)
+            if seg_idx > 0:
+                import asyncio
+                await asyncio.sleep(4)
 
-            is_retargeting = state.iteration >= 2 and seg_label in state.segments_used
-
-            # Generate variant A
-            print(f"[orchestrator] Generating variant A for '{seg_label}'...")
-            content_a = await generate_content(
-                campaign_id=campaign_id,
-                parsed_brief=state.parsed_brief,
-                segment=segment,
-                variant_label="A",
-                iteration=state.iteration,
-                prev_performance=prev_performance,
-                is_retargeting=is_retargeting,
+            success = await self._generate_segment_variants(
+                campaign_id, state, segment, seg_label, prev_performance,
             )
+            if not success:
+                failed_segments.append(seg_label)
+                self._log_segment_warning(
+                    campaign_id, state.iteration, seg_label,
+                    f"WARNING: Content generation failed for segment '{seg_label}' "
+                    f"— will retry at end of loop",
+                )
+
+        # ── Retry failed segments once at the end ────────────────────────
+        if failed_segments:
+            print(f"[orchestrator] Retrying {len(failed_segments)} failed segments: {failed_segments}")
+            still_failed: list[str] = []
+            for seg_label in failed_segments:
+                segment = state.all_segments.get(seg_label)
+                if not segment:
+                    continue
+
+                # Extra 5s breathing room before each retry
+                import asyncio
+                await asyncio.sleep(5)
+
+                success = await self._generate_segment_variants(
+                    campaign_id, state, segment, seg_label, prev_performance,
+                )
+                if not success:
+                    still_failed.append(seg_label)
+                    self._log_segment_warning(
+                        campaign_id, state.iteration, seg_label,
+                        f"ERROR: Content generation permanently failed for segment "
+                        f"'{seg_label}' after retry — segment will be skipped this iteration",
+                    )
+
+            if still_failed:
+                print(f"[orchestrator] WARNING: {len(still_failed)} segments permanently "
+                      f"failed after retry: {still_failed}")
+            else:
+                print(f"[orchestrator] All previously failed segments succeeded on retry")
+
+        state.status = "awaiting_approval"
+        print(f"[orchestrator] {len(state.pending_variants)} variants generated. "
+              f"Awaiting human approval...")
+        return state
+
+    async def _generate_segment_variants(
+        self,
+        campaign_id: str,
+        state: CampaignState,
+        segment,
+        seg_label: str,
+        prev_performance: list[dict],
+    ) -> bool:
+        """
+        Generate A/B variants for a single segment.
+        Returns True on success, False if all retries exhausted.
+        """
+        is_retargeting = state.iteration >= 2 and seg_label in state.segments_used
+        generate_b = not is_retargeting and getattr(segment, "size", len(segment.customer_ids)) >= 50
+
+        if generate_b:
+            group_a, group_b = state._profiler.ab_split(segment)
+        else:
+            group_a = segment.customer_ids
+            group_b = []
+
+        send_time = build_send_time(segment.recommended_send_hour, is_retargeting=is_retargeting)
+
+        try:
+            # Generate variant A (with retry — backoff 4s, 8s, 16s)
+            print(f"[orchestrator] Generating variant A for '{seg_label}'...")
+            content_a = None
+            for attempt in range(3):
+                try:
+                    content_a = await generate_content(
+                        campaign_id=campaign_id,
+                        parsed_brief=state.parsed_brief,
+                        segment=segment,
+                        variant_label="A",
+                        iteration=state.iteration,
+                        prev_performance=prev_performance,
+                        is_retargeting=is_retargeting,
+                    )
+                    break
+                except Exception as retry_err:
+                    if attempt < 2:
+                        wait_time = 2 ** (attempt + 2)  # 4s, 8s
+                        print(f"[orchestrator] Content gen failed for '{seg_label}' variant A "
+                              f"(attempt {attempt+1}): {retry_err}. Retrying in {wait_time}s...")
+                        import asyncio
+                        await asyncio.sleep(wait_time)
+                    else:
+                        raise
+
             state.pending_variants.append({
                 "variant_label": "A",
                 "segment_label": seg_label,
@@ -296,31 +455,72 @@ class Orchestrator:
                 "strategy_notes": content_a["strategy_notes"],
             })
 
-            # Generate variant B
-            print(f"[orchestrator] Generating variant B for '{seg_label}'...")
-            content_b = await generate_content(
-                campaign_id=campaign_id,
-                parsed_brief=state.parsed_brief,
-                segment=segment,
-                variant_label="B",
-                iteration=state.iteration,
-                prev_performance=prev_performance,
-                is_retargeting=is_retargeting,
-            )
-            state.pending_variants.append({
-                "variant_label": "B",
-                "segment_label": seg_label,
-                "subject": content_b["subject"],
-                "body": content_b["body"],
-                "customer_ids": group_b,
-                "send_time": send_time,
-                "strategy_notes": content_b["strategy_notes"],
-            })
+            if generate_b:
+                # Generate variant B (with retry — backoff 4s, 8s, 16s)
+                print(f"[orchestrator] Generating variant B for '{seg_label}'...")
+                content_b = None
+                for attempt in range(3):
+                    try:
+                        content_b = await generate_content(
+                            campaign_id=campaign_id,
+                            parsed_brief=state.parsed_brief,
+                            segment=segment,
+                            variant_label="B",
+                            iteration=state.iteration,
+                            prev_performance=prev_performance,
+                            is_retargeting=is_retargeting,
+                        )
+                        break
+                    except Exception as retry_err:
+                        if attempt < 2:
+                            wait_time = 2 ** (attempt + 2)  # 4s, 8s
+                            print(f"[orchestrator] Content gen failed for '{seg_label}' variant B "
+                                  f"(attempt {attempt+1}): {retry_err}. Retrying in {wait_time}s...")
+                            import asyncio
+                            await asyncio.sleep(wait_time)
+                        else:
+                            raise
 
-        state.status = "awaiting_approval"
-        print(f"[orchestrator] {len(state.pending_variants)} variants generated. "
-              f"Awaiting human approval...")
-        return state
+                state.pending_variants.append({
+                    "variant_label": "B",
+                    "segment_label": seg_label,
+                    "subject": content_b["subject"],
+                    "body": content_b["body"],
+                    "customer_ids": group_b,
+                    "send_time": send_time,
+                    "strategy_notes": content_b["strategy_notes"],
+                })
+            return True
+
+        except Exception as e:
+            print(f"[orchestrator] ERROR: Content generation failed for segment "
+                  f"'{seg_label}' after retries: {e}")
+            return False
+
+    def _log_segment_warning(self, campaign_id: str, iteration: int, seg_label: str, message: str):
+        """Log a visible warning to the agent_logs DB table."""
+        import json as _json
+        from backend.db.session import SessionLocal
+        from backend.db.models import AgentLog
+
+        msg = _json.dumps({
+            "iteration": iteration,
+            "segment": seg_label,
+            "reasoning": message,
+        })
+        db = SessionLocal()
+        try:
+            log = AgentLog(
+                created_at=datetime.now(timezone.utc),
+                campaign_id=campaign_id,
+                agent_name="orchestrator",
+                message=msg,
+            )
+            db.add(log)
+            db.commit()
+            print(f"[orchestrator] {message}")
+        finally:
+            db.close()
 
     async def _regenerate_with_feedback(self, campaign_id: str, state: CampaignState) -> CampaignState:
         """Re-generate content with human feedback appended to the brief."""
@@ -404,9 +604,15 @@ class Orchestrator:
 
     def _build_final_summary(self, state: CampaignState) -> dict:
         """Build the final campaign summary."""
-        total_customers = sum(
-            s.get("customer_count", 0) for s in state.sent_campaigns
-        )
+        # Use unique cohort size for "Customers Reached" (not total dispatches)
+        if state.cohort_ids:
+            total_customers = len(state.cohort_ids)
+        else:
+            # Fallback: sum only iteration 1 sent campaigns
+            total_customers = sum(
+                s.get("customer_count", 0) for s in state.sent_campaigns
+                if s.get("iteration", 1) == 1
+            )
 
         best_overall = {}
         if state.all_results:

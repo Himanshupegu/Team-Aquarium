@@ -18,11 +18,14 @@ IST = timezone(timedelta(hours=5, minutes=30))
 # HELPER 1 — build_send_time
 # ═══════════════════════════════════════════════════════════════════════════
 
-def build_send_time(hour_ist: int) -> str:
+def build_send_time(hour_ist: int, is_retargeting: bool = False) -> str:
     """
     Return send_time in DD:MM:YY HH:MM:SS format (2-digit year — critical).
     Schedules for hour_ist today in IST. If that hour has already passed, uses tomorrow.
     """
+    if is_retargeting:
+        hour_ist = 18 if hour_ist <= 12 else 9
+        
     now = datetime.now(IST)
     send = now.replace(hour=hour_ist, minute=0, second=0, microsecond=0)
     if send <= now:
@@ -155,20 +158,37 @@ async def execute_campaigns(
                   f"({len(clean_ids)} customers, send_time={send_time})")
 
             # Call the CampaignX API via dynamically discovered tool
-            result = call_tool_by_name(
-                "send_campaign",
-                subject=subject,
-                body=body,
-                list_customer_ids=clean_ids,
-                send_time=send_time,
-            )
+            # Add one automatic retry for failed sends
+            result = {}
+            last_error = None
+            for attempt in range(2): # 0, 1 -> max 2 attempts
+                try:
+                    result = call_tool_by_name(
+                        "send_campaign",
+                        subject=subject,
+                        body=body,
+                        list_customer_ids=clean_ids,
+                        send_time=send_time,
+                    )
+                    # Check for API errors
+                    response_code = result.get("response_code", 0)
+                    if response_code in (200, 201):
+                        break # Success
+                    
+                    error_msg = result.get("message", result.get("detail", str(result)))
+                    print(f"[executor] API error for {variant_label} on attempt {attempt + 1}: {error_msg}")
+                    last_error = str(error_msg)
+                except Exception as e:
+                    print(f"[executor] ERROR sending variant {variant_label} on attempt {attempt + 1}: {type(e).__name__}: {e}")
+                    last_error = str(e)
+                    result = {} # Ensure result is dict
+                    
+                if attempt == 0:
+                    print(f"[executor] Retrying send_campaign for {variant_label}...")
 
-            # Check for API errors
             response_code = result.get("response_code", 0)
             if response_code not in (200, 201):
-                error_msg = result.get("message", result.get("detail", str(result)))
-                print(f"[executor] API error for {variant_label}: {error_msg}")
-                failed.append({"variant_label": variant_label, "error": str(error_msg)})
+                failed.append({"variant_label": variant_label, "error": last_error or "Unknown error"})
                 continue
 
             api_campaign_id = result.get("campaign_id", "")

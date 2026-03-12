@@ -34,7 +34,7 @@ def compute_metrics(report_rows: list[dict]) -> dict:
     clicks = sum(1 for r in report_rows if _is_yes(r.get("EC")))
     open_rate = opens / total
     click_rate = clicks / total
-    composite = round(clicks * 0.7 + opens * 0.3, 4)
+    composite = round((click_rate * 0.7 + open_rate * 0.3) * 100, 2)
     return {
         "open_rate": round(open_rate, 4),
         "click_rate": round(click_rate, 4),
@@ -45,7 +45,7 @@ def compute_metrics(report_rows: list[dict]) -> dict:
     }
 
 
-def save_report_to_db(campaign_id: str, api_campaign_id: str, report_rows: list[dict]) -> None:
+def save_report_to_db(campaign_id: str, api_campaign_id: str, report_rows: list[dict], iteration: int) -> None:
     """Save every report row to campaign_reports table. Opens its own DB session."""
     from backend.db.session import SessionLocal
     from backend.db.models import CampaignReport
@@ -59,6 +59,7 @@ def save_report_to_db(campaign_id: str, api_campaign_id: str, report_rows: list[
                 customer_id=row.get("customer_id", ""),
                 email_opened=row.get("EO", "N"),
                 email_clicked=row.get("EC", "N"),
+                iteration=iteration,
             )
             db.add(report)
         db.commit()
@@ -108,12 +109,13 @@ async def analyze_performance(
         # Fetch report from API using the API-issued campaign ID
         report = call_tool_by_name("get_report", campaign_id=variant_campaign_id)
         report_rows = report.get("data", [])
+        print(f"[analyst] DEBUG RAW REPORT ROWS (First 5): {report_rows[:5]}")
 
         if not report_rows:
             print(f"[analyst] WARNING: No report data for campaign {variant_campaign_id}")
 
         # Save to DB with orchestrator's campaign_id and the api_campaign_id
-        save_report_to_db(campaign_id, variant_campaign_id, report_rows)
+        save_report_to_db(campaign_id, variant_campaign_id, report_rows, iteration)
 
         # Compute metrics
         metrics = compute_metrics(report_rows)

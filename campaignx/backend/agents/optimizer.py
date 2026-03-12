@@ -61,10 +61,22 @@ async def decide_next_iteration(
         return result
 
     # ── Continue: select next segments ──────────────────────────────────
+    if iteration > 1:
+        _filter_converted_users(campaign_id, all_segments)
 
+    max_pick_val = len(all_segments) if iteration == 1 else 2
     next_segments = _select_next_segments(
-        all_segments, segments_used, all_results, max_pick=2,
+        all_segments, segments_used, all_results, max_pick=max_pick_val,
     )
+
+    if not next_segments:
+        result = _build_stop_result("no_viable_segments", "No segments met retargeting thresholds (minimum 10 unconverted users)")
+        result["optimization_notes"] = await _generate_notes(
+            iteration, True, result["stop_reason"],
+            segments_used, [], all_results,
+        )
+        _log_to_db(campaign_id, iteration, result)
+        return result
 
     optimization_notes = await _generate_notes(
         iteration, False, None,
@@ -94,29 +106,43 @@ def _select_next_segments(
 ) -> list[str]:
     """
     Pick next segments to target.
-    First priority: unused segments, largest first.
-    Second priority: re-target worst performer from last iteration.
+    First priority: segments targeted the fewest number of times, largest first.
+    Second priority: if all segments have been targeted at least once, re-target worst performer among those with fewest targets.
     """
-    used_set = set(segments_used)
+    if not all_segments:
+        return []
 
-    # Unused segments sorted by size (largest first)
-    unused = [
-        (label, seg) for label, seg in all_segments.items()
-        if label not in used_set
-    ]
-    unused.sort(key=lambda x: x[1].size, reverse=True)
+    # Count how many times each segment has been used, considering only known segments
+    counts = {label: 0 for label in all_segments}
+    for label in segments_used:
+        if label in counts:
+            counts[label] += 1
 
-    next_labels = [label for label, _ in unused[:max_pick]]
+    # Find the minimum usage count
+    min_count = min(counts.values())
 
-    # If all used but we haven't hit max_iterations, re-target segment with most unconverted customers
-    if not next_labels and all_results:
-        worst = max(all_results, key=lambda r: r.get("total_sent", 0) - (r.get("clicks", 0) + r.get("opens", 0)))
-        worst_label = worst.get("segment_label", "")
-        if worst_label and worst_label in all_segments:
-            next_labels = [worst_label]
-            print(f"[optimizer] All segments used — re-targeting worst performer: {worst_label}")
+    # Get all segments with this minimum count
+    candidate_labels = {label for label, count in counts.items() if count == min_count}
 
-    print(f"[optimizer] Next segments: {next_labels}")
+    # First try picking largest from candidates if min_count == 0 (completely unused)
+    if min_count == 0:
+        candidates = [(label, all_segments[label]) for label in candidate_labels]
+        candidates.sort(key=lambda x: x[1].size, reverse=True)
+        next_labels = [label for label, _ in candidates[:max_pick]]
+        print(f"[optimizer] Next segments (unused): {next_labels}")
+        return next_labels
+
+    # If min_count > 0, we are re-targeting. Pick segments with most unconverted users.
+    candidates = [(label, all_segments[label]) for label in candidate_labels if label in all_segments]
+    
+    # Filter candidates with < 10 unconverted customers for retargeting
+    candidates = [(label, seg) for label, seg in candidates if len(seg.customer_ids) >= 10]
+
+    # size reflects exact unconverted count since converted users were filtered out
+    candidates.sort(key=lambda x: len(x[1].customer_ids), reverse=True)
+    next_labels = [label for label, _ in candidates[:max_pick]]
+
+    print(f"[optimizer] Next segments (re-targeted): {next_labels}")
     return next_labels
 
 
@@ -212,3 +238,32 @@ def _log_to_db(campaign_id: str, iteration: int, result: dict) -> None:
         print("[optimizer] Logged to agent_logs table")
     finally:
         db.close()
+
+
+def _filter_converted_users(campaign_id: str, all_segments: dict) -> None:
+    """Retargeting filter: exclude users who already had EO='Y' or EC='Y'."""
+    from backend.db.session import SessionLocal
+    from backend.db.models import CampaignReport
+    from sqlalchemy import or_
+
+    db = SessionLocal()
+    converted_ids = set()
+    try:
+        reports = db.query(CampaignReport.customer_id).filter(
+            CampaignReport.campaign_id == campaign_id,
+            or_(CampaignReport.email_opened == 'Y', CampaignReport.email_clicked == 'Y')
+        ).all()
+        converted_ids = {r[0] for r in reports}
+    except Exception as e:
+        print(f"[optimizer] Error fetching converted users: {e}")
+    finally:
+        db.close()
+
+    if not converted_ids:
+        return
+
+    for label, seg in all_segments.items():
+        original_size = len(seg.customer_ids)
+        seg.customer_ids = [cid for cid in seg.customer_ids if cid not in converted_ids]
+        if len(seg.customer_ids) < original_size:
+            print(f"[optimizer] Filtered {original_size - len(seg.customer_ids)} converted users from '{label}'")

@@ -443,7 +443,8 @@ Return ONLY a JSON array. No explanation, no markdown fences."""
           1. Analyze cohort schema (Python)
           2. Generate segment strategy (LLM)
           3. Execute segmentation (Python)
-          4. Log everything to agent_logs
+          4. Filter out empty segments (0 customers)
+          5. Log everything to agent_logs
         """
         # Stage 1
         schema = self.analyze_cohort_schema()
@@ -453,6 +454,37 @@ Return ONLY a JSON array. No explanation, no markdown fences."""
 
         # Stage 3
         segments = self.execute_segmentation(strategy)
+
+        # Stage 4 — Drop empty segments and log warnings
+        empty_labels = [label for label, seg in segments.items() if seg.size == 0]
+        if empty_labels:
+            import json as _json
+            from backend.db.session import SessionLocal
+            from backend.db.models import AgentLog
+
+            db = SessionLocal()
+            try:
+                for label in empty_labels:
+                    print(f"[profiler] WARNING: Segment '{label}' dropped — 0 customers matched.")
+                    warning_msg = _json.dumps({
+                        "iteration": 1,
+                        "warning": f"Segment '{label}' dropped — 0 customers matched.",
+                        "segment": label,
+                    })
+                    log = AgentLog(
+                        created_at=datetime.now(timezone.utc),
+                        campaign_id=campaign_id,
+                        agent_name="profiler",
+                        message=warning_msg,
+                    )
+                    db.add(log)
+                db.commit()
+            finally:
+                db.close()
+
+            # Remove empty segments from the dict
+            for label in empty_labels:
+                del segments[label]
 
         # Log to DB
         self._log_to_db(campaign_id, schema, strategy, segments)

@@ -251,6 +251,7 @@ async def campaign_status(campaign_id: str):
                 
                 agent_logs_formatted = []
                 for log in logs:
+                    msg_data = None
                     try:
                         msg_data = json.loads(log.message)
                         action = msg_data.get("reasoning", "Action logged.")
@@ -260,12 +261,17 @@ async def campaign_status(campaign_id: str):
                     agent_logs_formatted.append({
                         "timestamp": log.created_at.strftime("%H:%M:%S") if log.created_at else "",
                         "agent_name": log.agent_name,
-                        "action": action
+                        "action": action,
+                        "data": msg_data
                     })
                 
                 state_dict["agent_logs"] = agent_logs_formatted
             finally:
                 db.close()
+
+            # Fix: Ensure total_customers_reached shows unique customers
+            if state.cohort_ids and state_dict.get("final_summary"):
+                state_dict["final_summary"]["total_customers_reached"] = len(state.cohort_ids)
 
             return state_dict
 
@@ -309,11 +315,16 @@ async def campaign_status(campaign_id: str):
                 except:
                     pass
 
-            # 3. Segments (segment_label is now comma-separated in single row)
+            # 3. Segments (from JSON column first, fallback to comma-prepended string parsing)
             segments = []
+            segment_objs = None
             if campaigns:
                 for c in campaigns:
-                    segments.extend([s.strip() for s in c.segment_label.split(",") if s.strip()])
+                    if c.segments:
+                        segment_objs = c.segments
+                        segments.extend(c.segments.keys())
+                    elif c.segment_label:
+                        segments.extend([s.strip() for s in c.segment_label.split(",") if s.strip()])
                 segments = list(set(segments))
 
             # 4. all_results
@@ -321,55 +332,119 @@ async def campaign_status(campaign_id: str):
             total_global_opens = 0
             total_global_clicks = 0
             total_global_sent = 0
+            total_iteration_1_sent = 0
 
             if campaigns:
-                all_reports = db.query(
-                    CampaignReport, Campaign.segment_label, Campaign.variant_label
-                ).join(
-                    Campaign, Campaign.campaign_id == CampaignReport.campaign_id
-                ).filter(
-                    Campaign.campaign_id.in_([c.campaign_id for c in campaigns])
-                ).all()
+                all_results_db = next((c.all_results for c in campaigns if c.all_results), None)
 
-                results_map = {}
-                for report, seg_label, var_label in all_reports:
-                    key = (seg_label, var_label)
-                    if key not in results_map:
-                        results_map[key] = {"opens": 0, "clicks": 0, "total": 0}
-                    results_map[key]["total"] += 1
-                    if report.email_opened == "Y":
-                        results_map[key]["opens"] += 1
-                    if report.email_clicked == "Y":
-                        results_map[key]["clicks"] += 1
-                
-                for (seg_label, var_label), stats in results_map.items():
-                    t = stats["total"]
-                    o = stats["opens"]
-                    c = stats["clicks"]
-                    o_rate = o / t if t > 0 else 0.0
-                    c_rate = c / t if t > 0 else 0.0
-                    comp = (o_rate * 0.4) + (c_rate * 0.6)
+                if all_results_db:
+                    all_results = all_results_db
+                    for r in all_results:
+                        total_global_opens += r.get("opens", 0)
+                        total_global_clicks += r.get("clicks", 0)
+                        total_global_sent += r.get("total_sent", 0)
+                        if r.get("iteration") == 1:
+                            total_iteration_1_sent += r.get("total_sent", 0)
+                else:
+                    all_reports = db.query(
+                        CampaignReport, Campaign.segment_label, Campaign.variant_label, Campaign.iteration
+                    ).join(
+                        Campaign, Campaign.campaign_id == CampaignReport.campaign_id
+                    ).filter(
+                        Campaign.campaign_id.in_([c.campaign_id for c in campaigns])
+                    ).all()
+
+                    api_to_details = {}
+                    import json
+                    from backend.db.models import AgentLog
+                    exec_logs = db.query(AgentLog).filter(
+                        AgentLog.campaign_id == campaign_id,
+                        AgentLog.agent_name == "executor"
+                    ).order_by(AgentLog.id).all()
                     
-                    total_global_opens += o
-                    total_global_clicks += c
-                    total_global_sent += t
+                    cg_logs = db.query(AgentLog).filter(
+                        AgentLog.campaign_id == campaign_id,
+                        AgentLog.agent_name == "content_gen"
+                    ).order_by(AgentLog.id).all()
 
-                    all_results.append({
-                        "segment_label": seg_label,
-                        "variant_label": var_label,
-                        "open_rate": o_rate,
-                        "click_rate": c_rate,
-                        "composite_score": comp,
-                        "total_sent": t,
-                        "opens": o,
-                        "clicks": c
-                    })
+                    for it_num in range(1, 10):
+                        cg_for_iter = [json.loads(l.message) for l in cg_logs if json.loads(l.message).get("iteration") == it_num]
+                        ex_for_iter = next((json.loads(l.message) for l in exec_logs if json.loads(l.message).get("iteration") == it_num), None)
+                        if ex_for_iter and cg_for_iter:
+                            api_ids = ex_for_iter.get("api_campaign_ids", [])
+                            for i in range(min(len(cg_for_iter), len(api_ids))):
+                                api_to_details[api_ids[i]] = {
+                                    "iteration": it_num,
+                                    "segment": cg_for_iter[i].get("segment", "unknown"),
+                                    "variant": cg_for_iter[i].get("variant", "unknown")
+                                }
+
+                    results_map = {}
+                    has_valid_iteration = False
+                    unique_historical_customers = set()
+
+                    for report, seg_label, var_label, c_iteration in all_reports:
+                        details = api_to_details.get(report.api_campaign_id)
+                        
+                        actual_iter = report.iteration
+                        if actual_iter is None:
+                            actual_iter = details["iteration"] if details else 1
+                        else:
+                            has_valid_iteration = True
+                            
+                        if details:
+                            seg_label = details["segment"]
+                            var_label = details["variant"]
+
+                        unique_historical_customers.add(report.customer_id)
+
+                        key = (actual_iter, seg_label, var_label)
+                        if key not in results_map:
+                            results_map[key] = {"opens": 0, "clicks": 0, "total": 0}
+                        results_map[key]["total"] += 1
+                        if report.email_opened == "Y":
+                            results_map[key]["opens"] += 1
+                        if report.email_clicked == "Y":
+                            results_map[key]["clicks"] += 1
+                    
+                    for (c_iteration, seg_label, var_label), stats in results_map.items():
+                        t = stats["total"]
+                        o = stats["opens"]
+                        c = stats["clicks"]
+                        o_rate = o / t if t > 0 else 0.0
+                        c_rate = c / t if t > 0 else 0.0
+                        comp = (o_rate * 0.4) + (c_rate * 0.6)
+                        
+                        total_global_opens += o
+                        total_global_clicks += c
+                        total_global_sent += t
+                        
+                        if c_iteration == 1:
+                            total_iteration_1_sent += t
+
+                        all_results.append({
+                            "iteration": c_iteration,
+                            "segment_label": seg_label,
+                            "variant_label": var_label,
+                            "open_rate": o_rate,
+                            "click_rate": c_rate,
+                            "composite_score": comp,
+                            "total_sent": t,
+                            "opens": o,
+                            "clicks": c
+                        })
+                    
+                    if not has_valid_iteration and all_reports:
+                        total_iteration_1_sent = len(unique_historical_customers)
 
                 if not all_results:
                     for c in campaigns:
                         sent_cnt = len(c.customer_ids) if c.customer_ids else 0
                         total_global_sent += sent_cnt
+                        if c.iteration == 1:
+                            total_iteration_1_sent += sent_cnt
                         all_results.append({
+                            "iteration": c.iteration,
                             "segment_label": c.segment_label,
                             "variant_label": c.variant_label,
                             "open_rate": 0.0,
@@ -383,6 +458,7 @@ async def campaign_status(campaign_id: str):
             # 5. logs
             agent_logs_formatted = []
             for log in logs:
+                msg_data = None
                 try:
                     msg_data = json.loads(log.message)
                     action = msg_data.get("reasoning", "Action logged.")
@@ -391,15 +467,20 @@ async def campaign_status(campaign_id: str):
                 agent_logs_formatted.append({
                     "timestamp": log.created_at.strftime("%H:%M:%S") if log.created_at else "",
                     "agent_name": log.agent_name,
-                    "action": action
+                    "action": action,
+                    "data": msg_data
                 })
             
             # 6. final_summary
-            best_overall = max(all_results, key=lambda x: x["composite_score"]) if all_results else {}
+            best_overall = None
+            if all_results:
+                valid_variants = [x for x in all_results if str(x.get("variant_label")).lower() not in ["all", "", "none"]]
+                if valid_variants:
+                    best_overall = max(valid_variants, key=lambda x: x["composite_score"])
             
             final_summary = {
                 "total_campaigns_sent": len(campaigns) if campaigns else 0,
-                "total_customers_reached": total_global_sent,
+                "total_customers_reached": total_iteration_1_sent if all_results else total_global_sent,
                 "iterations_completed": max([c.iteration for c in campaigns] + [0]) if campaigns else 0,
                 "segments_targeted": segments,
                 "best_overall": best_overall,
@@ -420,6 +501,7 @@ async def campaign_status(campaign_id: str):
                 "status": status,
                 "start_date": started,
                 "segments_used": segments,
+                "all_segments": segment_objs if segment_objs else {},
                 "all_results": all_results,
                 "final_summary": final_summary,
                 "agent_logs": agent_logs_formatted,
@@ -459,9 +541,16 @@ async def list_campaigns():
         for cid, state in _active_states.items():
             seen_ids.add(cid)
             
-            cust_sent = 0
-            if state.sent_campaigns:
-                cust_sent = sum(s.get("customer_count", 0) for s in state.sent_campaigns)
+            # Use unique cohort size, not total dispatches across iterations
+            if state.cohort_ids:
+                cust_sent = len(state.cohort_ids)
+            elif state.sent_campaigns:
+                cust_sent = sum(
+                    s.get("customer_count", 0) for s in state.sent_campaigns
+                    if s.get("iteration", 1) == 1
+                )
+            else:
+                cust_sent = 0
             
             open_rate = 0.0
             click_rate = 0.0
@@ -485,8 +574,9 @@ async def list_campaigns():
                 "brief_snippet": brief_snip,
                 "campaign_brief": brief_snip,  # included for frontend compatibility
                 "status": state.status,
-                "segments_count": len(state.segments_used) if state.segments_used else len(state.all_segments),
+                "segments_count": len(state.all_segments) if state.all_segments else len(set(state.segments_used)),
                 "customers_sent": cust_sent,
+                "total_sent": total_sent or cust_sent,
                 "open_rate": open_rate,
                 "click_rate": click_rate,
                 "created_at": started,
@@ -515,20 +605,53 @@ async def list_campaigns():
             brief_snip = (brief[:80] + "...") if len(brief) > 80 else brief
             started = first_log.created_at.strftime("%Y-%m-%d %H:%M:%S") if first_log and first_log.created_at else ""
             
-            # Count segments from comma-separated segment_label
-            camp = db.query(Campaign).filter(Campaign.campaign_id == cid).first()
-            segs = len([s.strip() for s in camp.segment_label.split(",") if s.strip()]) if camp else 0
+            # Count segments from all Campaign records for this campaign_id
+            camps = db.query(Campaign).filter(Campaign.campaign_id == cid).all()
+            segments_used = set()
+            all_segments = {}
+            for c in camps:
+                if c.segment_label:
+                    for s in c.segment_label.split(","):
+                        if s.strip():
+                            segments_used.add(s.strip())
+                if getattr(c, 'segments', None):
+                    all_segments.update(c.segments)
+            segs = len(all_segments) if all_segments else len(segments_used)
+
+            # Fallback: check profiler agent log for accurate segment count
+            profiler_logs = db.query(AgentLog).filter(
+                AgentLog.campaign_id == cid,
+                AgentLog.agent_name == "profiler"
+            ).all()
+            for profiler_log in profiler_logs:
+                try:
+                    import re
+                    log_data = json.loads(profiler_log.message)
+                    log_text = log_data.get("reasoning", "") or ""
+                    match = re.search(r"(\d+)\s+segments?\s+defined", log_text)
+                    if match:
+                        profiler_seg_count = int(match.group(1))
+                        if profiler_seg_count > segs:
+                            segs = profiler_seg_count
+                        break
+                except:
+                    pass
             
             reports = db.query(CampaignReport).filter(CampaignReport.campaign_id == cid).all()
             cust_sent_reports = len(set(r.customer_id for r in reports))
             
             open_rate = 0.0
             click_rate = 0.0
+            total_calc_sent = 0
             if cust_sent_reports > 0:
-                opens = sum(1 for r in reports if r.email_opened == "Y")
-                clicks = sum(1 for r in reports if r.email_clicked == "Y")
-                open_rate = opens / cust_sent_reports
-                click_rate = clicks / cust_sent_reports
+                total_calc_opens = sum(1 for r in reports if r.email_opened == "Y")
+                total_calc_clicks = sum(1 for r in reports if r.email_clicked == "Y")
+                total_calc_sent = len(reports)
+
+                if total_calc_sent > 0:
+                    open_rate = total_calc_opens / total_calc_sent
+                    click_rate = total_calc_clicks / total_calc_sent
+                
                 cust_sent = cust_sent_reports
             else:
                 # Fallback to campaign intent if no reports
@@ -538,6 +661,7 @@ async def list_campaigns():
                     if c.customer_ids:
                         c_ids.update(c.customer_ids)
                 cust_sent = len(c_ids)
+                total_calc_sent = cust_sent
 
             campaigns_out.append({
                 "campaign_id": cid,
@@ -546,6 +670,7 @@ async def list_campaigns():
                 "status": "done",
                 "segments_count": segs,
                 "customers_sent": cust_sent,
+                "total_sent": total_calc_sent,
                 "open_rate": open_rate,
                 "click_rate": click_rate,
                 "created_at": started,
@@ -781,12 +906,30 @@ async def budget_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ── GET /api/health ────────────────────────────────────────────────────────
+
+@app.get("/api/health")
+async def api_health():
+    """Health check for frontend."""
+    return {"status": "ok"}
+
+
 # ── GET /health ──────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health():
     """Health check."""
     return {"status": "ok", "version": "2.0"}
+
+# ── GET /api/config ──────────────────────────────────────────────────────
+
+@app.get("/api/config")
+async def api_config():
+    """Get backend configuration."""
+    import os
+    mock_api = os.getenv("MOCK_API", "true").lower() == "true"
+    return {"mock_api": mock_api}
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════
