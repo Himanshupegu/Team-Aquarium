@@ -1,3 +1,117 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Pipeline Stepper Animations ── */
+@keyframes progressFill {
+    from {
+        width: 0%;
+    }
+
+    to {
+        width: 100%;
+    }
+}
+
+@keyframes pulseGlow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+    }
+
+    50% {
+        box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+    }
+}
+
+/* ── Circular Progress Ring ── */
+@keyframes ringFill {
+    from {
+        stroke-dashoffset: 314;
+    }
+}
+
+@keyframes ringPulse {
+
+    0%,
+    100% {
+        filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.3));
+    }
+
+    50% {
+        filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.6));
+    }
+}
+
+/* ── Agent Log Animations ── */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Shimmer / Skeleton ── */
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.shimmer-bar {
+    background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.8s ease-in-out infinite;
+    border-radius: 6px;
+}
+
+/* ── Utility Classes ── */
+.pipeline-line-fill {
+    animation: progressFill 0.8s ease-out forwards;
+}
+
+.stage-icon-active {
+    animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.progress-ring-animated {
+    animation: ringPulse 2.5s ease-in-out infinite;
+}
+
+.log-row-enter {
+    animation: fadeInUp 0.3s ease-out forwards;
+}
+
+/* Live feed pulse */
+@keyframes livePulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
+}
+
+.live-dot {
+    animation: livePulse 1.5s ease-in-out infinite;
+}
+
+/* Monospace log area */
+.log-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}

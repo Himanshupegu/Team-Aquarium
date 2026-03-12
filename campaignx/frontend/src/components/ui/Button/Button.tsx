@@ -28,18 +28,18 @@ export const Button = ({
         'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed';
     const variants = {
         primary:
-            'bg-black text-white hover:bg-gray-800 active:bg-gray-900 disabled:bg-gray-300',
+            'bg-blue-600 text-white shadow-sm hover:bg-blue-700 hover:shadow active:scale-[0.98] disabled:bg-gray-300 disabled:shadow-none focus:ring-blue-500',
         secondary:
-            'bg-white border-2 border-black text-black hover:bg-gray-50 active:bg-gray-100 disabled:border-gray-300 disabled:text-gray-300',
+            'bg-white border border-gray-200 text-gray-700 shadow-sm hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 active:scale-[0.98] disabled:border-gray-200 disabled:text-gray-400 disabled:shadow-none focus:ring-gray-200',
         tertiary:
-            'bg-transparent text-black hover:bg-gray-100 active:bg-gray-200 disabled:text-gray-300',
+            'bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200 disabled:text-gray-400 focus:ring-gray-200',
         destructive:
-            'bg-white border-2 border-black text-black hover:bg-gray-900 hover:border-gray-900 hover:text-white active:bg-black disabled:bg-gray-100 disabled:border-gray-300 disabled:text-gray-300',
+            'bg-white border border-red-200 text-red-600 shadow-sm hover:bg-red-50 border-red-300 hover:text-red-700 active:scale-[0.98] disabled:bg-gray-50 disabled:border-gray-200 disabled:text-gray-400 focus:ring-red-500',
     };
     const sizes = {
-        small: 'text-sm px-3 py-1.5 gap-1.5',
-        medium: 'text-base px-4 py-2 gap-2',
-        large: 'text-lg px-6 py-3 gap-2.5',
+        small: 'text-sm px-3 py-1.5 gap-1.5 rounded-lg',
+        medium: 'text-base px-4 py-2 gap-2 rounded-xl',
+        large: 'text-lg px-6 py-3 gap-2.5 rounded-xl',
     };
     const iconSizes = {
         small: 'p-1.5',

@@ -14,6 +14,7 @@ interface CampaignData {
     status: string;
     segments_count: number;
     customers_sent: number;
+    total_sent: number;
     open_rate: number;
     click_rate: number;
     start_date: string;
@@ -31,7 +32,7 @@ export default function CampaignsListPage() {
         const fetchCampaigns = async () => {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                const res = await fetch(`${apiUrl}/api/campaigns`);
+                const res = await fetch(`${apiUrl}/api/campaigns`, { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
                     const fetchedCampaigns = data.campaigns || [];
@@ -141,7 +142,7 @@ export default function CampaignsListPage() {
                                             <td className="px-6 py-4 text-gray-900 truncate max-w-[200px]">{campaign.campaign_brief}</td>
                                             <td className="px-6 py-4"><StatusBadge status={campaign.status as CampaignStatus} /></td>
                                             <td className="px-6 py-4 text-gray-600">{campaign.segments_count}</td>
-                                            <td className="px-6 py-4 text-gray-600">{formatNumber(campaign.customers_sent)}</td>
+                                            <td className="px-6 py-4 text-gray-600">{formatNumber(campaign.total_sent)}</td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col gap-1">
                                                     <span className="text-gray-900 font-medium">{openFormatted}</span>

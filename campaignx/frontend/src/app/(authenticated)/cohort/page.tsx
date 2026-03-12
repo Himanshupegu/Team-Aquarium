@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { Button } from '@/components/ui/Button';
-import { RefreshCwIcon, Loader2Icon, AlertTriangleIcon } from 'lucide-react';
+import { RefreshCwIcon, Loader2Icon, AlertTriangleIcon, UsersIcon, MapPinIcon, CalendarHeartIcon, WalletIcon } from 'lucide-react';
 
 interface CohortSummaryData {
     total_customers: number;
@@ -105,10 +105,10 @@ export default function CohortExplorerPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <MetricCard icon={null} value={formatNumber(data.total_customers)} label="Total Customers" />
-                <MetricCard icon={null} value={formatNumber(data.total_cities)} label="Number of Cities" />
-                <MetricCard icon={null} value={data.average_age.toString()} label="Average Age" />
-                <MetricCard icon={null} value={data.dominant_income_tier} label="Dominant Income" />
+                <MetricCard icon={<UsersIcon className="w-5 h-5" />} value={formatNumber(data.total_customers)} label="Total Customers" accentColor="blue" />
+                <MetricCard icon={<MapPinIcon className="w-5 h-5" />} value={formatNumber(data.total_cities)} label="Number of Cities" accentColor="orange" />
+                <MetricCard icon={<CalendarHeartIcon className="w-5 h-5" />} value={data.average_age.toString()} label="Average Age" accentColor="teal" />
+                <MetricCard icon={<WalletIcon className="w-5 h-5" />} value={data.dominant_income_tier} label="Dominant Income" accentColor="purple" />
             </div>
 
             <div className="flex flex-col lg:flex-row gap-8 mb-8">

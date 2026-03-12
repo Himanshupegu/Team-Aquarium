@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { StatusBadge, CampaignStatus } from '@/components/ui/StatusBadge';
 import {
-    BarChart3Icon, UsersIcon, MailOpenIcon, MousePointerClickIcon,
+    LayersIcon, UsersIcon, MailOpenIcon, TrendingUpIcon,
     SearchIcon, ChevronRightIcon, PlusIcon, Loader2Icon
 } from 'lucide-react';
 import { formatIST } from '@/lib/dateUtils';
@@ -18,6 +18,7 @@ interface CampaignData {
     status: string;
     segments_count: number;
     customers_sent: number;
+    total_sent: number;
     open_rate: number;
     click_rate: number;
     start_date: string;
@@ -34,7 +35,7 @@ export default function DashboardPage() {
         const fetchCampaigns = async () => {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                const res = await fetch(`${apiUrl}/api/campaigns`);
+                const res = await fetch(`${apiUrl}/api/campaigns`, { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
                     const fetchedCampaigns = data.campaigns || [];
@@ -87,10 +88,10 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-                <MetricCard icon={<BarChart3Icon className="w-5 h-5" />} value={totalCampaigns.toString()} label="Total Campaigns" />
-                <MetricCard icon={<UsersIcon className="w-5 h-5" />} value={formatNumber(totalCustomers)} label="Customers Reached" />
-                <MetricCard icon={<MailOpenIcon className="w-5 h-5" />} value={formatRate(avgOpenRate)} label="Avg Open Rate" />
-                <MetricCard icon={<MousePointerClickIcon className="w-5 h-5" />} value={formatRate(avgClickRate)} label="Avg Click Rate" />
+                <MetricCard icon={<LayersIcon className="w-5 h-5" />} value={totalCampaigns.toString()} label="Total Campaigns" accentColor="purple" />
+                <MetricCard icon={<UsersIcon className="w-5 h-5" />} value={formatNumber(totalCustomers)} label="Customers Reached" accentColor="blue" />
+                <MetricCard icon={<MailOpenIcon className="w-5 h-5" />} value={formatRate(avgOpenRate)} label="Avg Open Rate" accentColor="green" />
+                <MetricCard icon={<TrendingUpIcon className="w-5 h-5" />} value={formatRate(avgClickRate)} label="Avg Click Rate" accentColor="orange" />
             </div>
 
             <div className="mb-6 flex items-center justify-between">
@@ -148,7 +149,7 @@ export default function DashboardPage() {
                                             <td className="px-6 py-4 text-gray-900 truncate max-w-[200px]">{campaign.campaign_brief}</td>
                                             <td className="px-6 py-4"><StatusBadge status={campaign.status as CampaignStatus} /></td>
                                             <td className="px-6 py-4 text-gray-600">{campaign.segments_count}</td>
-                                            <td className="px-6 py-4 text-gray-600">{formatNumber(campaign.customers_sent)}</td>
+                                            <td className="px-6 py-4 text-gray-600">{formatNumber(campaign.total_sent)}</td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col gap-1">
                                                     <span className="text-gray-900 font-medium">{openFormatted}</span>
