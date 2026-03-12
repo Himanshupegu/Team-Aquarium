@@ -19,42 +19,41 @@ CampaignX is an AI-powered multi-agent system designed to plan, execute, monitor
 
 ---
 
-## 🚀 Hackathon Rulebook Compliance & Functional Capabilities
+## 🚀 Core Features & Capabilities
 
-Our solution is specifically architected to meet and exceed every requirement outlined in the **FrostHack | XPECTO 2026 CampaignX Rulebook** (Sections 6 & 10).
+CampaignX provides an end-to-end automated marketing workflow. Here are its key functional capabilities:
 
-### 1. Customer Cohort (Rule 6.1)
-The system leverages dynamic API discovery to fetch the live customer cohort required for the active phase (Preliminary or Test) without hardcoded datasets, establishing an accurate master data pool for segmentation.
+### 1. Dynamic Customer Cohort Integration
+The system leverages dynamic API discovery to fetch live customer cohorts on demand. It does not rely on hardcoded datasets, establishing an accurate, up-to-date master data pool for customer segmentation.
 
-### 2. Campaign Brief Parsing (Rule 6.2)
-CampaignX accepts free-flowing natural language input via the UI. The `brief_parser` agent intelligently extracts the core product (`XDeposit`), key advantages (1% higher returns, 0.25% bonus for female senior citizens), mandatory elements (links), and optimization goals.
+### 2. Natural Language Brief Parsing
+CampaignX accepts free-flowing natural language marketing briefs via the UI. The `brief_parser` agent intelligently extracts the core product (e.g., `XDeposit`), key advantages (e.g., higher returns, bonuses for specific demographics), mandatory elements (links), and optimization goals.
 
-### 3. Campaign Planning & Segmentation (Rule 6.3)
-The `profiler` agent analyzes the actual cohort schema and instructs the LLM to dynamically create 4 to 9 **mutually exclusive and collectively exhaustive** target segments based on the data. It plans targeted strategies and assigns prime send-hours for each segment.
+### 3. Campaign Planning & Intelligent Segmentation
+The `profiler` agent analyzes the actual cohort schema and instructs the LLM to dynamically create 4 to 9 **mutually exclusive and collectively exhaustive** target segments based on the data. It formulates targeted strategies and assigns prime send-hours tailored to each segment's profile.
 
-### 4. Content Generation (Rule 6.4)
-The `content_gen` agent autonomously crafts two variants (A/B testing) for each segment. 
-- It generates emotional vs. rational **text variations**.
-- It decides whether **emojis** are appropriate based on the segment tone.
-- It dynamically injects **font variations** (HTML `<b>`, `<i>`, `<u>`).
-- It inherently checks and ensures the mandatory **call-to-action URL** (`https://superbfsi.com/xdeposit/explore/`) is correctly placed within the body, as verified by strict output validators.
+### 4. Automated Content Generation
+The `content_gen` agent autonomously crafts two distinct email variants (A/B testing) for each segment:
+- Generates **emotional vs. rational** text variations based on the segment's strategy.
+- Selects and inserts appropriate **emojis** to match the segment tone.
+- Dynamically injects **font formatting** (HTML `<b>`, `<i>`, `<u>`) for emphasis.
+- Uses strict output validators to ensure mandatory **call-to-action URLs** are correctly placed within every email body.
 
-### 5. Human-in-Loop Approval (Rule 6.5)
-The `orchestrator` pauses the pipeline intelligently at the `awaiting_approval` state. The Next.js frontend polls and presents the proposed segments, variants, timelines, and customer lists to the human marketer, who must explicitly approve or safely reject (which triggers content regeneration) before any emails are sent.
+### 5. Human-in-Loop Approval Gate
+While fully automated, CampaignX incorporates a critical human safety valve. The `orchestrator` pauses the pipeline at the `awaiting_approval` state. The Next.js frontend polls and presents the proposed segments, email variants, timelines, and customer lists to the human marketer. The marketer must explicitly approve or reject (which triggers smart content regeneration based on their feedback) before any campaigns are dispatched.
 
-### 6. Campaign Scheduling & Execution (Rule 6.6)
-**NO Deterministic API Calling!** We built `api_tools.py` which dynamically pulls the live OpenAPI JSON spec, resolves references, and formats the API payload on-the-fly to execute/schedule the campaign precisely as required by the rules.
+### 6. Dynamic Campaign Execution 
+The system avoids deterministic API calling. Instead, the `api_tools.py` module dynamically discovers and pulls the live OpenAPI JSON spec, resolves references, and formats the API payloads on-the-fly to execute and schedule campaigns.
 
-### 7. Performance Monitoring & Evaluation Metrics (Rule 6.7 & 10.1)
-The `analyst` agent autonomously fetches campaign reports via the dynamically discovered API. 
-**We implemented the exact Hackathon Evaluation Weightage:** Our system computes a real-time `composite_score` evaluating the performance as `(Click Rate * 0.7) + (Open Rate * 0.3)`.
+### 7. Real-Time Performance Analytics
+The `analyst` agent autonomously fetches campaign reports via the dynamically discovered APIs immediately after execution. It computes a real-time `composite_score` evaluating the overall performance. By default, the optimization targets prioritize clicks over opens (calculated as `(Click Rate * 0.7) + (Open Rate * 0.3)`).
 
-### 8. Autonomous Optimization (Rule 6.8)
-Using the computed composite scores, the `optimizer` agent iteratively re-targets the worst-performing segments in subsequent loops (up to `max_iterations`). It instructs the prompt chain to refine the tone, style, and angle to hunt for higher click and open rates automatically.
+### 8. Autonomous Optimization Loop
+Using the computed composite scores, the `optimizer` agent iteratively re-targets the worst-performing segments in subsequent loops (up to a defined `max_iterations` limit). It instructs the prompt chain to automatically refine the tone, style, and advertising angle to iteratively hunt for higher click and open rates.
 
-### 🏆 Bonus Points Achieved (Rule 10.3)
-- [x] **Comprehensive Agent Logging:** Every LLM prompt, reasoning step, and agent output is persistently tracked in the `agent_logs` SQLite table.
-- [x] **Real-time Dashboards:** Our Next.js frontend provides an interactive, live-polling dashboard showing the status, current metrics, and variants for ongoing campaigns.
+### ✨ Extended Capabilities
+- **Comprehensive Agent Logging:** Every LLM prompt, logical reasoning step, and agent output is persistently tracked in the `agent_logs` SQLite table, providing full observability into the AI's decision-making process.
+- **Real-Time Dashboards:** The Next.js frontend provides an interactive, live-polling dashboard showing the status, current metrics, and active variants for ongoing campaigns.
 
 ---
 
