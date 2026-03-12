@@ -72,6 +72,29 @@ The core relies on a **LangGraph-inspired State Machine Pipeline** orchestrated 
 
 ---
 
+## Project Structure
+Here is an overview of the core project files and their responsibilities:
+```text
+campaignx/
+├── backend/
+│   ├── agents/          # Agent logic (profiling, content generation, validation, etc.)
+│   ├── tools/           # Dynamic API spec discovery and automated tool execution
+│   ├── llm/             # Custom intelligent LLM router with fallback chains
+│   ├── db/              # SQLAlchemy models, initialization scripts, and schemas
+│   ├── main.py          # Central FastAPI entry point 
+│   └── *.py             # Miscellaneous debug scripts
+├── frontend/            # Next.js 14 UI mapped to backend API
+│   ├── src/app/         # App routing and primary pages (Dashboard, Cohorts, Settings)
+│   ├── src/components/  # Modular Tailwind components
+│   └── src/lib/         # Various UI utility functions
+├── tests/               # Comprehensive Pytest suites for Phase 1 - 3
+├── requirements.txt     # Global Python dependency requirements
+├── .env.example         # Template for configuring target environment credentials
+└── README.md            # Primary documentation
+```
+
+---
+
 ## Setup and Installation
 
 1. Copy the environment variables template and add your API keys:
