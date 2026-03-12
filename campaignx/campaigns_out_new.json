@@ -1,0 +1,69 @@
+{
+  "campaigns": [
+    {
+      "campaign_id": "24895c39-fd53-4ff5-86a4-a42e4b5acd3d",
+      "brief_snippet": "Run email campaign for launching XDeposit, a flagship term deposit product from ...",
+      "campaign_brief": "Run email campaign for launching XDeposit, a flagship term deposit product from ...",
+      "status": "done",
+      "segments_count": 5,
+      "customers_sent": 1000,
+      "total_sent": 2354,
+      "open_rate": 0.3623619371282923,
+      "click_rate": 0.1308411214953271,
+      "created_at": "2026-03-10 07:16:43",
+      "start_date": "2026-03-10 07:16:43"
+    },
+    {
+      "campaign_id": "4fcd13cc-3778-45c9-97ab-b321741ca5e8",
+      "brief_snippet": "Run email campaign for launching XDeposit, a flagship term deposit product from ...",
+      "campaign_brief": "Run email campaign for launching XDeposit, a flagship term deposit product from ...",
+      "status": "done",
+      "segments_count": 0,
+      "customers_sent": 0,
+      "total_sent": 0,
+      "open_rate": 0.0,
+      "click_rate": 0.0,
+      "created_at": "2026-03-10 07:07:30",
+      "start_date": "2026-03-10 07:07:30"
+    },
+    {
+      "campaign_id": "e9ff4054-3a09-46ab-ae36-6d00a2487598",
+      "brief_snippet": "Launch an email campaign promoting QuickFlex Personal Loan from TrustCapital wit...",
+      "campaign_brief": "Launch an email campaign promoting QuickFlex Personal Loan from TrustCapital wit...",
+      "status": "done",
+      "segments_count": 5,
+      "customers_sent": 1000,
+      "total_sent": 1000,
+      "open_rate": 0.134,
+      "click_rate": 0.055,
+      "created_at": "2026-03-09 21:02:45",
+      "start_date": "2026-03-09 21:02:45"
+    },
+    {
+      "campaign_id": "0a8347b4-d5bb-424c-9305-b72761412c13",
+      "brief_snippet": "Run an onboarding email campaign for InvestEase, a new investment platform enabl...",
+      "campaign_brief": "Run an onboarding email campaign for InvestEase, a new investment platform enabl...",
+      "status": "done",
+      "segments_count": 2,
+      "customers_sent": 524,
+      "total_sent": 524,
+      "open_rate": 0.4026717557251908,
+      "click_rate": 0.16412213740458015,
+      "created_at": "2026-03-09 20:53:33",
+      "start_date": "2026-03-09 20:53:33"
+    },
+    {
+      "campaign_id": "997f516f-630a-4307-9378-09205878353d",
+      "brief_snippet": "Create an email campaign for LifeSecure Term Insurance by SafeLife Insurance off...",
+      "campaign_brief": "Create an email campaign for LifeSecure Term Insurance by SafeLife Insurance off...",
+      "status": "done",
+      "segments_count": 2,
+      "customers_sent": 911,
+      "total_sent": 911,
+      "open_rate": 0.14270032930845225,
+      "click_rate": 0.03293084522502744,
+      "created_at": "2026-03-09 20:37:15",
+      "start_date": "2026-03-09 20:37:15"
+    }
+  ]
+}

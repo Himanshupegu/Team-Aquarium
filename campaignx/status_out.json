@@ -1,0 +1,182 @@
+{
+  "campaign_id": "24895c39-fd53-4ff5-86a4-a42e4b5acd3d",
+  "campaign_brief": "Run email campaign for launching XDeposit, a flagship term deposit product from SuperBFSI, that gives 1 percentage point higher returns than its competitors. Announce an additional 0.25 percentage point higher returns for female senior citizens. Optimise for open rate and click rate. Don't skip emails to customers marked 'inactive'. Include the call to action: https://superbfsi.com/xdeposit/explore/\n\nNote: Include inactive customers. Expand audience to users who haven't logged in for 30+ days.",
+  "status": "done",
+  "start_date": "2026-03-10 07:16:43",
+  "segments_used": [
+    "catch_all",
+    "existing_customers",
+    "young_professionals",
+    "high_income_earners",
+    "female_senior_citizens"
+  ],
+  "all_segments": {},
+  "all_results": [
+    {
+      "iteration": 1,
+      "segment_label": "high_income_earners, female_senior_citizens, existing_customers, catch_all, young_professionals",
+      "variant_label": "all",
+      "open_rate": 0.3623619371282923,
+      "click_rate": 0.1308411214953271,
+      "composite_score": 0.22344944774851316,
+      "total_sent": 2354,
+      "opens": 853,
+      "clicks": 308
+    }
+  ],
+  "final_summary": {
+    "total_campaigns_sent": 1,
+    "total_customers_reached": 1000,
+    "iterations_completed": 3,
+    "segments_targeted": [
+      "catch_all",
+      "existing_customers",
+      "young_professionals",
+      "high_income_earners",
+      "female_senior_citizens"
+    ],
+    "best_overall": null,
+    "overall_open_rate": 0.3623619371282923,
+    "overall_click_rate": 0.1308411214953271
+  },
+  "agent_logs": [
+    {
+      "timestamp": "07:16:43",
+      "agent_name": "brief_parser",
+      "action": "Structured extraction from campaign brief via LLM"
+    },
+    {
+      "timestamp": "07:16:49",
+      "agent_name": "profiler",
+      "action": "Hybrid segmentation: 15 fields analyzed, 6 segments defined by LLM, 1000 customers assigned"
+    },
+    {
+      "timestamp": "07:16:50",
+      "agent_name": "content_gen",
+      "action": "Generated variant A for segment 'high_income_earners' (iteration 1)"
+    },
+    {
+      "timestamp": "07:16:51",
+      "agent_name": "content_gen",
+      "action": "Generated variant B for segment 'high_income_earners' (iteration 1)"
+    },
+    {
+      "timestamp": "07:16:53",
+      "agent_name": "content_gen",
+      "action": "Generated variant A for segment 'female_senior_citizens' (iteration 1)"
+    },
+    {
+      "timestamp": "07:16:54",
+      "agent_name": "content_gen",
+      "action": "Generated variant B for segment 'female_senior_citizens' (iteration 1)"
+    },
+    {
+      "timestamp": "07:16:55",
+      "agent_name": "content_gen",
+      "action": "Generated variant A for segment 'existing_customers' (iteration 1)"
+    },
+    {
+      "timestamp": "07:16:56",
+      "agent_name": "content_gen",
+      "action": "Generated variant B for segment 'existing_customers' (iteration 1)"
+    },
+    {
+      "timestamp": "07:16:57",
+      "agent_name": "content_gen",
+      "action": "Generated variant A for segment 'catch_all' (iteration 1)"
+    },
+    {
+      "timestamp": "07:16:59",
+      "agent_name": "content_gen",
+      "action": "Generated variant B for segment 'catch_all' (iteration 1)"
+    },
+    {
+      "timestamp": "07:17:00",
+      "agent_name": "content_gen",
+      "action": "Generated variant A for segment 'young_professionals' (iteration 1)"
+    },
+    {
+      "timestamp": "07:17:01",
+      "agent_name": "content_gen",
+      "action": "Generated variant B for segment 'young_professionals' (iteration 1)"
+    },
+    {
+      "timestamp": "07:17:02",
+      "agent_name": "content_gen",
+      "action": "Generated variant A for segment 'inactive_customers' (iteration 1)"
+    },
+    {
+      "timestamp": "07:17:03",
+      "agent_name": "content_gen",
+      "action": "Generated variant B for segment 'inactive_customers' (iteration 1)"
+    },
+    {
+      "timestamp": "07:17:43",
+      "agent_name": "executor",
+      "action": "Executed 10 campaigns successfully, 2 failed"
+    },
+    {
+      "timestamp": "07:17:59",
+      "agent_name": "analyst",
+      "action": "Analyzed 10 variants. Overall open rate: 34.1%, click rate: 13.8%."
+    },
+    {
+      "timestamp": "07:18:03",
+      "agent_name": "optimizer",
+      "action": "Continuing: None"
+    },
+    {
+      "timestamp": "07:18:04",
+      "agent_name": "content_gen",
+      "action": "Generated variant A for segment 'high_income_earners' (iteration 2)"
+    },
+    {
+      "timestamp": "07:18:06",
+      "agent_name": "content_gen",
+      "action": "Generated variant B for segment 'high_income_earners' (iteration 2)"
+    },
+    {
+      "timestamp": "07:18:51",
+      "agent_name": "executor",
+      "action": "Executed 2 campaigns successfully, 0 failed"
+    },
+    {
+      "timestamp": "07:18:58",
+      "agent_name": "analyst",
+      "action": "Analyzed 2 variants. Overall open rate: 37.8%, click rate: 12.6%."
+    },
+    {
+      "timestamp": "07:19:03",
+      "agent_name": "optimizer",
+      "action": "Continuing: None"
+    },
+    {
+      "timestamp": "07:19:04",
+      "agent_name": "content_gen",
+      "action": "Generated variant A for segment 'high_income_earners' (iteration 3)"
+    },
+    {
+      "timestamp": "07:19:05",
+      "agent_name": "content_gen",
+      "action": "Generated variant B for segment 'high_income_earners' (iteration 3)"
+    },
+    {
+      "timestamp": "07:19:41",
+      "agent_name": "executor",
+      "action": "Executed 2 campaigns successfully, 0 failed"
+    },
+    {
+      "timestamp": "07:19:47",
+      "agent_name": "analyst",
+      "action": "Analyzed 2 variants. Overall open rate: 37.8%, click rate: 12.6%."
+    },
+    {
+      "timestamp": "07:19:51",
+      "agent_name": "optimizer",
+      "action": "Stopping: max_iterations_reached"
+    }
+  ],
+  "iteration": 3,
+  "optimization_notes": "",
+  "pending_variants": []
+}
