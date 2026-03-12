@@ -12,10 +12,15 @@
 **Team Name:** Team Aquarium  
 **Members:** Himanshu Pegu, Shikhin Sharma, Siddharth Singh, Vishal Singh
 
----
-
 ## Project Overview
 CampaignX is an AI-powered multi-agent system designed to plan, execute, monitor, and optimize digital marketing campaigns autonomously. Given a natural language campaign brief, CampaignX profiles customers into segments, generates highly personalized A/B email variants, and leverages human-in-the-loop approvals before automatically executing the campaign and running continuous optimization loops based on live performance data.
+
+---
+
+## 🎥 Demo & Presentation
+*(Add links here before final submission)*
+- **Demo Video:** [Watch on YouTube](#)
+- **Slide Deck:** [View on Google Drive](#)
 
 ---
 
@@ -134,3 +139,23 @@ pytest tests/test_phase2_sub7.py
 pytest tests/test_phase2_sub8.py
 pytest tests/test_phase3_parta.py 
 ```
+
+---
+
+## 💡 Usage Guide
+1. **Input Brief:** Navigate to the Dashboard UI and enter your natural language campaign brief.
+2. **Review Plan:** The system will dynamically generate target segments and craft personalized A/B variants. Review these thoroughly.
+3. **Approve & Dispatch:** Click **Approve** to authorize the agent to execute the campaign. 
+4. **Monitor & Optimize:** Watch the real-time analytics populate as the optimizer loops autonomously re-targets underperforming segments.
+
+---
+
+## 🔮 Future Enhancements
+- **Multi-Channel Orchestration:** Expand beyond email to include SMS and WhatsApp.
+- **Advanced Predictive Modeling:** Incorporate bespoke machine learning models to forecast CTR pre-flight.
+- **Enterprise Cloud Deployment:** Full containerization and deployment to AWS via EKS for global scalability.
+
+---
+
+## 📜 License
+This project is licensed under the MIT License - see the LICENSE file for details.
