@@ -18,8 +18,8 @@ CampaignX is an AI-powered multi-agent system designed to plan, execute, monitor
 ---
 
 ## 🎥 Demo & Presentation
-*(Add links here before final submission)*
-- **Demo Video:** [Watch on YouTube](#)
+
+- **Demo Video:** [Watch on Google Drive](#)
 - **Slide Deck:** [View on Google Drive](#)
 
 ---
@@ -154,8 +154,3 @@ pytest tests/test_phase3_parta.py
 - **Multi-Channel Orchestration:** Expand beyond email to include SMS and WhatsApp.
 - **Advanced Predictive Modeling:** Incorporate bespoke machine learning models to forecast CTR pre-flight.
 - **Enterprise Cloud Deployment:** Full containerization and deployment to AWS via EKS for global scalability.
-
----
-
-## 📜 License
-This project is licensed under the MIT License - see the LICENSE file for details.
