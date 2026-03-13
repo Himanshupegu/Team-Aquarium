@@ -554,10 +554,16 @@ class Orchestrator:
             if not segment:
                 continue
 
-            group_a, group_b = state._profiler.ab_split(segment)
-            send_time = build_send_time(segment.recommended_send_hour)
-
             is_retargeting = state.iteration >= 2 and seg_label in state.segments_used
+            generate_b = not is_retargeting and getattr(segment, "size", len(segment.customer_ids)) >= 50
+
+            if generate_b:
+                group_a, group_b = state._profiler.ab_split(segment)
+            else:
+                group_a = segment.customer_ids
+                group_b = []
+
+            send_time = build_send_time(segment.recommended_send_hour, is_retargeting=is_retargeting)
 
             content_a = await generate_content(
                 campaign_id=campaign_id,
@@ -578,24 +584,25 @@ class Orchestrator:
                 "strategy_notes": content_a["strategy_notes"],
             })
 
-            content_b = await generate_content(
-                campaign_id=campaign_id,
-                parsed_brief=augmented_brief,
-                segment=segment,
-                variant_label="B",
-                iteration=state.iteration,
-                prev_performance=prev_performance,
-                is_retargeting=is_retargeting,
-            )
-            state.pending_variants.append({
-                "variant_label": "B",
-                "segment_label": seg_label,
-                "subject": content_b["subject"],
-                "body": content_b["body"],
-                "customer_ids": group_b,
-                "send_time": send_time,
-                "strategy_notes": content_b["strategy_notes"],
-            })
+            if generate_b:
+                content_b = await generate_content(
+                    campaign_id=campaign_id,
+                    parsed_brief=augmented_brief,
+                    segment=segment,
+                    variant_label="B",
+                    iteration=state.iteration,
+                    prev_performance=prev_performance,
+                    is_retargeting=is_retargeting,
+                )
+                state.pending_variants.append({
+                    "variant_label": "B",
+                    "segment_label": seg_label,
+                    "subject": content_b["subject"],
+                    "body": content_b["body"],
+                    "customer_ids": group_b,
+                    "send_time": send_time,
+                    "strategy_notes": content_b["strategy_notes"],
+                })
 
         state.status = "awaiting_approval"
         print(f"[orchestrator] {len(state.pending_variants)} variants regenerated. "
