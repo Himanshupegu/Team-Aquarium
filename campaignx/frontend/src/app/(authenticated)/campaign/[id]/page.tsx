@@ -460,8 +460,22 @@ const ProcessingStatusPanel = ({
     campaign: CampaignData | null; segments: any[]; currentStageIndex: number; totalStages: number; id: string; router: ReturnType<typeof useRouter>;
 }) => {
     const isRunning = ['starting', 'parsing', 'profiling', 'analyzing', 'generating', 'sending', 'executing', 'optimizing'].includes(campaign?.status || '');
-    const percentage = Math.min(Math.round((currentStageIndex / totalStages) * 100), 100);
+    const percentage = Math.max(0, Math.min(Math.round((currentStageIndex / totalStages) * 100), 100));
     const customerCount = campaign?.final_summary?.total_customers_reached || Object.values(campaign?.all_segments || {}).reduce((sum: number, s: any) => sum + (s.size || 0), 0) || 0;
+
+    const getStatusLabel = (status?: string) => {
+        switch (status) {
+            case 'starting': return 'starting pipeline for';
+            case 'parsing': return 'parsing brief for';
+            case 'profiling': return 'profiling';
+            case 'analyzing': return 'analyzing';
+            case 'generating': return 'generating content for';
+            case 'sending': return 'sending emails to';
+            case 'executing': return 'executing campaign for';
+            case 'optimizing': return 'optimizing campaign for';
+            default: return 'processing';
+        }
+    };
 
     return (
         <div className="space-y-4">
@@ -481,7 +495,7 @@ const ProcessingStatusPanel = ({
                         <div className="text-center space-y-1 mb-6">
                             <div className="flex items-center justify-center gap-2 text-sm text-gray-700">
                                 <Loader2Icon className="w-4 h-4 text-blue-500 animate-spin" />
-                                <span>AI is {campaign?.status === 'generating' ? 'generating content for' : campaign?.status === 'analyzing' ? 'analyzing' : 'processing'} {customerCount.toLocaleString()} customers.</span>
+                                <span>AI is {getStatusLabel(campaign?.status)} {customerCount.toLocaleString()} customers.</span>
                             </div>
                             <p className="text-xs text-gray-400">Estimated completion in ~{Math.max(2, 15 - currentStageIndex * 2)} mins</p>
                         </div>
@@ -650,11 +664,11 @@ export default function CampaignDetailPage() {
     }, [id]);
 
     const getStepperData = (status?: string) => {
-        const stages = ['starting', 'analyzing', 'generating', 'awaiting_approval', 'sending', 'optimizing', 'done'];
+        const stages = ['starting', 'parsing', 'profiling', 'analyzing', 'generating', 'awaiting_approval', 'sending', 'executing', 'optimizing', 'done'];
         const currentIndex = status ? stages.indexOf(status) : 0;
 
-        let activeIndex = currentIndex;
-        let completed = Array.from({ length: currentIndex }, (_, i) => i);
+        let activeIndex = Math.max(0, currentIndex);
+        let completed = Array.from({ length: Math.max(0, currentIndex) }, (_, i) => i);
 
         if (status === 'done') {
             activeIndex = stages.length;
@@ -765,7 +779,7 @@ export default function CampaignDetailPage() {
 
                 {/* Right: Processing Status Panel */}
                 <div className="lg:w-[35%]">
-                    <ProcessingStatusPanel campaign={campaign} segments={segments} currentStageIndex={currentStageIndex} totalStages={7} id={id} router={router} />
+                    <ProcessingStatusPanel campaign={campaign} segments={segments} currentStageIndex={currentStageIndex} totalStages={10} id={id} router={router} />
                 </div>
             </div>
 

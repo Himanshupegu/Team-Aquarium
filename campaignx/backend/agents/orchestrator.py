@@ -522,11 +522,60 @@ class Orchestrator:
         finally:
             db.close()
 
+    async def _parse_feedback_targets(self, human_feedback: str, segments_available: list[str]) -> list[dict]:
+        """Parse human feedback to determine which segments and variants need regeneration."""
+        from backend.llm.router import llm_router
+        import json
+        import re
+
+        prompt = f"""You are a campaign assistant. A user has provided feedback on some generated email variants.
+Available segments: {segments_available}
+
+User feedback: "{human_feedback}"
+
+Identify which segments and which variants (A or B) the user wants to regenerate.
+If the user specifies a segment, include it. If they specify a variant, include the variant label ("A" or "B"). If they don't specify a variant but mention a segment, include both "A" and "B" by using "ALL" for the variant label.
+If the feedback is general and DOES NOT specify any particular segment, assume they want to regenerate ALL segments (return all of them with "ALL").
+
+Return a JSON array of objects, with each object having exactly these keys:
+- "segment_label": string (one of the available segments)
+- "variant_label": string ("A", "B", or "ALL")
+
+Return ONLY the JSON array. Do not include markdown formatting like ```json or ```."""
+        try:
+            raw = await llm_router.call(prompt, task="structured_parse", max_tokens=300)
+            raw = raw.strip()
+            raw = re.sub(r"^```(?:json)?\s*\n?", "", raw)
+            raw = re.sub(r"\n?```\s*$", "", raw)
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return parsed
+        except Exception as e:
+            print(f"[orchestrator] Failed to parse feedback targets: {e}")
+        return [{"segment_label": s, "variant_label": "ALL"} for s in segments_available]
+
     async def _regenerate_with_feedback(self, campaign_id: str, state: CampaignState) -> CampaignState:
         """Re-generate content with human feedback appended to the brief."""
         state.status = "generating"
-        state.pending_variants = []
         state.human_decision = None
+
+        # Determine which segments/variants to regenerate
+        targets = await self._parse_feedback_targets(state.human_feedback, state.next_segments)
+        target_map = {}
+        for t in targets:
+            seg = t.get("segment_label")
+            var = t.get("variant_label", "ALL")
+            if seg in state.next_segments:
+                if seg not in target_map:
+                    target_map[seg] = []
+                target_map[seg].append(var)
+
+        if not target_map:
+            for s in state.next_segments:
+                target_map[s] = ["ALL"]
+
+        old_variants = list(state.pending_variants)
+        state.pending_variants = []
 
         # Augment the parsed brief with feedback
         augmented_brief = dict(state.parsed_brief)
@@ -557,6 +606,16 @@ class Orchestrator:
             is_retargeting = state.iteration >= 2 and seg_label in state.segments_used
             generate_b = not is_retargeting and getattr(segment, "size", len(segment.customer_ids)) >= 50
 
+            vars_to_regen = target_map.get(seg_label, [])
+
+            if not vars_to_regen:
+                # Keep old variants for this segment
+                state.pending_variants.extend([v for v in old_variants if v["segment_label"] == seg_label])
+                continue
+
+            regen_a = "ALL" in vars_to_regen or "A" in vars_to_regen
+            regen_b = generate_b and ("ALL" in vars_to_regen or "B" in vars_to_regen)
+
             if generate_b:
                 group_a, group_b = state._profiler.ab_split(segment)
             else:
@@ -565,44 +624,56 @@ class Orchestrator:
 
             send_time = build_send_time(segment.recommended_send_hour, is_retargeting=is_retargeting)
 
-            content_a = await generate_content(
-                campaign_id=campaign_id,
-                parsed_brief=augmented_brief,
-                segment=segment,
-                variant_label="A",
-                iteration=state.iteration,
-                prev_performance=prev_performance,
-                is_retargeting=is_retargeting,
-            )
-            state.pending_variants.append({
-                "variant_label": "A",
-                "segment_label": seg_label,
-                "subject": content_a["subject"],
-                "body": content_a["body"],
-                "customer_ids": group_a,
-                "send_time": send_time,
-                "strategy_notes": content_a["strategy_notes"],
-            })
-
-            if generate_b:
-                content_b = await generate_content(
+            if regen_a:
+                print(f"[orchestrator] Regenerating variant A for '{seg_label}'...")
+                content_a = await generate_content(
                     campaign_id=campaign_id,
                     parsed_brief=augmented_brief,
                     segment=segment,
-                    variant_label="B",
+                    variant_label="A",
                     iteration=state.iteration,
                     prev_performance=prev_performance,
                     is_retargeting=is_retargeting,
                 )
                 state.pending_variants.append({
-                    "variant_label": "B",
+                    "variant_label": "A",
                     "segment_label": seg_label,
-                    "subject": content_b["subject"],
-                    "body": content_b["body"],
-                    "customer_ids": group_b,
+                    "subject": content_a["subject"],
+                    "body": content_a["body"],
+                    "customer_ids": group_a,
                     "send_time": send_time,
-                    "strategy_notes": content_b["strategy_notes"],
+                    "strategy_notes": content_a["strategy_notes"],
                 })
+            else:
+                existing_a = next((v for v in old_variants if v["segment_label"] == seg_label and v["variant_label"] == "A"), None)
+                if existing_a:
+                    state.pending_variants.append(existing_a)
+
+            if generate_b:
+                if regen_b:
+                    print(f"[orchestrator] Regenerating variant B for '{seg_label}'...")
+                    content_b = await generate_content(
+                        campaign_id=campaign_id,
+                        parsed_brief=augmented_brief,
+                        segment=segment,
+                        variant_label="B",
+                        iteration=state.iteration,
+                        prev_performance=prev_performance,
+                        is_retargeting=is_retargeting,
+                    )
+                    state.pending_variants.append({
+                        "variant_label": "B",
+                        "segment_label": seg_label,
+                        "subject": content_b["subject"],
+                        "body": content_b["body"],
+                        "customer_ids": group_b,
+                        "send_time": send_time,
+                        "strategy_notes": content_b["strategy_notes"],
+                    })
+                else:
+                    existing_b = next((v for v in old_variants if v["segment_label"] == seg_label and v["variant_label"] == "B"), None)
+                    if existing_b:
+                        state.pending_variants.append(existing_b)
 
         state.status = "awaiting_approval"
         print(f"[orchestrator] {len(state.pending_variants)} variants regenerated. "
