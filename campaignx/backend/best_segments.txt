@@ -1,0 +1,54 @@
+Total campaign entries: 18
+
+Entries with report data: 16
+
+=== ALL SEGMENTS RANKED BY SCORE ===
+
+#1: Score=23.77 | Open=42.6% | Click=15.7% | Sent=1000 | Custs=1000
+     Campaign=9796c77a... | Iter=1 | Variant=(none) | Segment=(none)
+
+#2: Score=23.57 | Open=40.3% | Click=16.4% | Sent=524 | Custs=524
+     Campaign=0a8347b4... | Iter=1 | Variant=all | Segment=catch_all, new_users_no_kyc
+
+#3: Score=20.03 | Open=36.2% | Click=13.1% | Sent=2354 | Custs=1000
+     Campaign=24895c39... | Iter=3 | Variant=all | Segment=high_income_earners, female_senior_citizens, existing_customers, catch_all, young_professionals
+
+#4: Score=16.29 | Open=21.9% | Click=13.9% | Sent=1230 | Custs=1000
+     Campaign=71cae986... | Iter=2 | Variant=(none) | Segment=(none)
+
+#5: Score=15.87 | Open=23.7% | Click=12.5% | Sent=1999 | Custs=1000
+     Campaign=a57069b9... | Iter=2 | Variant=(none) | Segment=(none)
+
+#6: Score=15.57 | Open=25.4% | Click=11.4% | Sent=2463 | Custs=1000
+     Campaign=dd761be3... | Iter=3 | Variant=(none) | Segment=(none)
+
+#7: Score=15.10 | Open=25.9% | Click=10.4% | Sent=2000 | Custs=1000
+     Campaign=d9077717... | Iter=2 | Variant=(none) | Segment=(none)
+
+#8: Score=15.04 | Open=23.8% | Click=11.3% | Sent=1980 | Custs=1000
+     Campaign=d6b34ced... | Iter=2 | Variant=(none) | Segment=(none)
+
+#9: Score=14.55 | Open=24.4% | Click=10.3% | Sent=2362 | Custs=1000
+     Campaign=5da502e4... | Iter=3 | Variant=(none) | Segment=(none)
+
+#10: Score=13.71 | Open=24.3% | Click=9.2% | Sent=1993 | Custs=1000
+     Campaign=7dad2c29... | Iter=2 | Variant=(none) | Segment=(none)
+
+#11: Score=7.87 | Open=13.4% | Click=5.5% | Sent=1000 | Custs=1000
+     Campaign=e9ff4054... | Iter=1 | Variant=all | Segment=high_income_earners, young_professionals, married_with_dependents, existing_loyal_customers, catch_all_segment
+
+#12: Score=6.96 | Open=16.2% | Click=3.0% | Sent=1860 | Custs=1000
+     Campaign=86e9e5fc... | Iter=3 | Variant=(none) | Segment=(none)
+
+#13: Score=6.59 | Open=14.3% | Click=3.3% | Sent=911 | Custs=911
+     Campaign=997f516f... | Iter=1 | Variant=all | Segment=catch_all, young_families
+
+#14: Score=3.57 | Open=5.6% | Click=2.7% | Sent=701 | Custs=701
+     Campaign=9a8ed03b... | Iter=1 | Variant=(none) | Segment=(none)
+
+#15: Score=3.00 | Open=5.7% | Click=1.8% | Sent=1969 | Custs=1000
+     Campaign=5727695e... | Iter=3 | Variant=(none) | Segment=(none)
+
+#16: Score=0.00 | Open=0.0% | Click=0.0% | Sent=115 | Custs=115
+     Campaign=94c38b07... | Iter=1 | Variant=(none) | Segment=(none)
+

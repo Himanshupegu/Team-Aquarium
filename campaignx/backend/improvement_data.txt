@@ -1,0 +1,9 @@
+=== SEGMENT IMPROVEMENT ACROSS ITERATIONS ===
+
+Total segment transitions found: 0
+
+=== TOP 15 BIGGEST IMPROVEMENTS ===
+
+
+=== WORST DROPS (segments that got worse) ===
+

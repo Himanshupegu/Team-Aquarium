@@ -1,0 +1,65 @@
+[
+  {
+    "iteration": 1,
+    "segment": "",
+    "sent": 1816,
+    "opened": 465,
+    "clicked": 176,
+    "open_rate_pct": 25.61,
+    "click_rate_pct": 9.69
+  },
+  {
+    "iteration": 1,
+    "segment": "catch_all, new_users_no_kyc",
+    "sent": 524,
+    "opened": 211,
+    "clicked": 86,
+    "open_rate_pct": 40.27,
+    "click_rate_pct": 16.41
+  },
+  {
+    "iteration": 1,
+    "segment": "catch_all, young_families",
+    "sent": 911,
+    "opened": 130,
+    "clicked": 30,
+    "open_rate_pct": 14.27,
+    "click_rate_pct": 3.29
+  },
+  {
+    "iteration": 1,
+    "segment": "high_income_earners, young_professionals, married_with_dependents, existing_loyal_customers, catch_all_segment",
+    "sent": 1000,
+    "opened": 134,
+    "clicked": 55,
+    "open_rate_pct": 13.4,
+    "click_rate_pct": 5.5
+  },
+  {
+    "iteration": 2,
+    "segment": "",
+    "sent": 9202,
+    "opened": 2218,
+    "clicked": 1036,
+    "open_rate_pct": 24.1,
+    "click_rate_pct": 11.26
+  },
+  {
+    "iteration": 3,
+    "segment": "",
+    "sent": 8654,
+    "opened": 1615,
+    "clicked": 616,
+    "open_rate_pct": 18.66,
+    "click_rate_pct": 7.12
+  },
+  {
+    "iteration": 3,
+    "segment": "high_income_earners, female_senior_citizens, existing_customers, catch_all, young_professionals",
+    "sent": 2354,
+    "opened": 853,
+    "clicked": 308,
+    "open_rate_pct": 36.24,
+    "click_rate_pct": 13.08
+  }
+]

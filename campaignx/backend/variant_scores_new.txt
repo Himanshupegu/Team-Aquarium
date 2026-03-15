@@ -1,0 +1,33 @@
+Iter 2: 17 entries
+  A social_media_engaged: Open=33.0% Click=8.2% Score=15.68 Sent=303
+  B social_media_engaged: Open=58.4% Click=29.4% Score=38.09 Sent=303
+  A app_users: Open=0.0% Click=0.0% Score=0.00 Sent=66
+  B app_users: Open=0.0% Click=0.0% Score=0.00 Sent=67
+  A high_income: Open=59.2% Click=20.4% Score=32.04 Sent=49
+  B high_income: Open=55.1% Click=28.6% Score=36.53 Sent=49
+  A high_credit_score: Open=54.0% Click=16.2% Score=27.57 Sent=37
+  B high_credit_score: Open=64.9% Click=43.2% Score=49.73 Sent=37
+  A young_professionals: Open=48.3% Click=0.0% Score=14.48 Sent=29
+  B young_professionals: Open=40.0% Click=20.0% Score=26.00 Sent=30
+  A catch_all: Open=43.3% Click=6.7% Score=17.67 Sent=30
+  A social_media_engaged: Open=4.8% Click=2.0% Score=2.82 Sent=606
+  A app_users: Open=55.6% Click=21.8% Score=31.95 Sent=133
+  A high_income: Open=0.0% Click=0.0% Score=0.00 Sent=98
+  A high_credit_score: Open=0.0% Click=0.0% Score=0.00 Sent=74
+  A young_professionals: Open=0.0% Click=0.0% Score=0.00 Sent=59
+  A catch_all: Open=0.0% Click=0.0% Score=0.00 Sent=30
+
+--- Also check campaign 9796c77a ---
+Iter 1: 12 entries
+  A social_media_active: Open=41.9% Click=11.6% Score=20.70 Sent=129
+  B social_media_active: Open=53.8% Click=21.5% Score=31.23 Sent=130
+  A young_professionals: Open=30.4% Click=2.7% Score=10.98 Sent=112
+  B young_professionals: Open=29.5% Click=8.9% Score=15.09 Sent=112
+  A married_with_family: Open=44.2% Click=17.9% Score=25.79 Sent=95
+  B married_with_family: Open=51.6% Click=24.2% Score=32.42 Sent=95
+  A high_credit_score: Open=46.5% Click=18.3% Score=26.76 Sent=71
+  B high_credit_score: Open=49.3% Click=29.6% Score=35.49 Sent=71
+  A catch_all: Open=50.8% Click=8.2% Score=20.98 Sent=61
+  B catch_all: Open=46.8% Click=21.0% Score=28.71 Sent=62
+  A senior_citizens: Open=29.0% Click=16.1% Score=20.00 Sent=31
+  B senior_citizens: Open=22.6% Click=12.9% Score=15.81 Sent=31

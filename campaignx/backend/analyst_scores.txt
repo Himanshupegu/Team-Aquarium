@@ -1,0 +1,12 @@
+No variant-level data found in segment_scores or results keys.
+
+Dumping full keys from first analyst log:
+  iteration: int = 1
+  campaign_count: int = 4
+  overall_open_rate: float = 0.1427
+  overall_click_rate: float = 0.0329
+  best_variant: str = "B"
+  worst_variant: str = "B"
+  result_count: int = 4
+  analyst_summary: str = "The best-performing variant (B, catch_all) likely outperformed due to a more engaging tone, concise subject line, or stronger emotional appeal, while the worst (B, young_families) may have had a misa
+  reasoning: str = "Analyzed 4 variants. Overall open rate: 14.3%, click rate: 3.3%."

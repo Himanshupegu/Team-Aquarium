@@ -1,0 +1,39 @@
+
+--- CAMPAIGN METRICS BY ITERATION ---
+
+Iteration 0:
+  Overall Sent: 0, Open Rate: 0.0%, Click Rate: 0.0%, Score: 0.0
+
+Iteration 1:
+  Overall Sent: 4251, Open Rate: 22.1%, Click Rate: 8.2%, Score: 12.3
+  Best Segment:  (Score: 23.8, Open: 42.6%, Click: 15.7%)
+
+Iteration 2:
+  Overall Sent: 9202, Open Rate: 24.1%, Click Rate: 11.3%, Score: 15.1
+  Best Segment:  (Score: 16.3, Open: 21.9%, Click: 13.9%)
+
+Iteration 3:
+  Overall Sent: 11008, Open Rate: 22.4%, Click Rate: 8.4%, Score: 12.6
+  Best Segment: high_income_earners, female_senior_citizens, existing_customers, catch_all, young_professionals (Score: 20.0, Open: 36.2%, Click: 13.1%)
+
+--- TOP 10 BEST PERFORMING VARIANTS ---
+1. Iteration 1 | Segment:  | Variant: 
+   Score: 23.77 | Open: 42.6% | Click: 15.7% | Sent: 1000
+2. Iteration 1 | Segment: catch_all, new_users_no_kyc | Variant: all
+   Score: 23.57 | Open: 40.3% | Click: 16.4% | Sent: 524
+3. Iteration 3 | Segment: high_income_earners, female_senior_citizens, existing_customers, catch_all, young_professionals | Variant: all
+   Score: 20.03 | Open: 36.2% | Click: 13.1% | Sent: 2354
+4. Iteration 2 | Segment:  | Variant: 
+   Score: 16.29 | Open: 21.9% | Click: 13.9% | Sent: 1230
+5. Iteration 2 | Segment:  | Variant: 
+   Score: 15.87 | Open: 23.7% | Click: 12.5% | Sent: 1999
+6. Iteration 3 | Segment:  | Variant: 
+   Score: 15.57 | Open: 25.4% | Click: 11.4% | Sent: 2463
+7. Iteration 2 | Segment:  | Variant: 
+   Score: 15.10 | Open: 25.9% | Click: 10.4% | Sent: 2000
+8. Iteration 2 | Segment:  | Variant: 
+   Score: 15.04 | Open: 23.8% | Click: 11.3% | Sent: 1980
+9. Iteration 3 | Segment:  | Variant: 
+   Score: 14.55 | Open: 24.4% | Click: 10.3% | Sent: 2362
+10. Iteration 2 | Segment:  | Variant: 
+   Score: 13.71 | Open: 24.3% | Click: 9.2% | Sent: 1993

@@ -1,0 +1,17 @@
+
+--- CAMPAIGN METRICS BY ITERATION ---
+
+Iteration 0:
+  Overall Sent: 0, Open Rate: 0.0%, Click Rate: 0.0%, Score: 0.0
+
+Iteration 1:
+  Overall Sent: 4251, Open Rate: 22.1%, Click Rate: 8.2%, Score: 12.3
+  Best Segment:  (Score: 23.8, Open: 42.6%, Click: 15.7%)
+
+Iteration 2:
+  Overall Sent: 15194, Open Rate: 23.9%, Click Rate: 10.3%, Score: 14.4
+  Best Segment:  (Score: 16.3, Open: 21.9%, Click: 13.9%)
+
+Iteration 3:
+  Overall Sent: 11008, Open Rate: 22.4%, Click Rate: 8.4%, Score: 12.6
+  Best Segment: high_income_earners, female_senior_citizens, existing_customers, catch_all, young_professionals (Score: 20.0, Open: 36.2%, Click: 13.1%)

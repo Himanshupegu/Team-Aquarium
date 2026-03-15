@@ -1,0 +1,94 @@
+Total segment-variant entries: 167
+
+=== TOP 30 BEST PERFORMING SEGMENT-VARIANTS (by composite_score) ===
+
+#1: Score=50.32 | Open=66.1% | Click=43.5% | Sent=62 | Opens=41 | Clicks=27
+     Campaign=5da502e4 | Iter=1 | Var=B | Seg=mid_age_family
+
+#2: Score=49.73 | Open=64.9% | Click=43.2% | Sent=37 | Opens=24 | Clicks=16
+     Campaign=d9077717 | Iter=1 | Var=B | Seg=high_credit_score
+
+#3: Score=45.96 | Open=67.2% | Click=36.8% | Sent=171 | Opens=115 | Clicks=63
+     Campaign=dd761be3 | Iter=3 | Var=A | Seg=high_income_earners
+
+#4: Score=45.83 | Open=65.3% | Click=37.5% | Sent=144 | Opens=94 | Clicks=54
+     Campaign=a57069b9 | Iter=1 | Var=A | Seg=frequent_app_users
+
+#5: Score=43.77 | Open=65.6% | Click=34.4% | Sent=61 | Opens=40 | Clicks=21
+     Campaign=5da502e4 | Iter=1 | Var=A | Seg=mid_age_family
+
+#6: Score=42.46 | Open=59.7% | Click=35.1% | Sent=57 | Opens=34 | Clicks=20
+     Campaign=7dad2c29 | Iter=2 | Var=A | Seg=senior_citizens
+
+#7: Score=42.15 | Open=66.0% | Click=31.9% | Sent=144 | Opens=95 | Clicks=46
+     Campaign=a57069b9 | Iter=1 | Var=B | Seg=frequent_app_users
+
+#8: Score=40.20 | Open=67.7% | Click=28.4% | Sent=102 | Opens=69 | Clicks=29
+     Campaign=d6b34ced | Iter=2 | Var=A | Seg=female_senior_citizens
+
+#9: Score=40.05 | Open=67.2% | Click=28.4% | Sent=204 | Opens=137 | Clicks=58
+     Campaign=5da502e4 | Iter=2 | Var=A | Seg=female_senior_citizens
+
+#10: Score=39.90 | Open=66.7% | Click=28.4% | Sent=102 | Opens=68 | Clicks=29
+     Campaign=d6b34ced | Iter=2 | Var=B | Seg=female_senior_citizens
+
+#11: Score=39.58 | Open=54.2% | Click=33.3% | Sent=24 | Opens=13 | Clicks=8
+     Campaign=9a8ed03b | Iter=1 | Var=A | Seg=catch_all
+
+#12: Score=38.09 | Open=58.4% | Click=29.4% | Sent=303 | Opens=177 | Clicks=89
+     Campaign=d9077717 | Iter=1 | Var=B | Seg=social_media_engaged
+
+#13: Score=37.14 | Open=57.1% | Click=28.6% | Sent=7 | Opens=4 | Clicks=2
+     Campaign=7dad2c29 | Iter=1 | Var=A | Seg=working_women
+
+#14: Score=36.74 | Open=59.3% | Click=27.1% | Sent=432 | Opens=256 | Clicks=117
+     Campaign=dd761be3 | Iter=2 | Var=A | Seg=high_income_earners
+
+#15: Score=36.53 | Open=55.1% | Click=28.6% | Sent=49 | Opens=27 | Clicks=14
+     Campaign=d9077717 | Iter=1 | Var=B | Seg=high_income
+
+#16: Score=35.88 | Open=64.7% | Click=23.5% | Sent=68 | Opens=44 | Clicks=16
+     Campaign=a57069b9 | Iter=2 | Var=A | Seg=senior_citizens
+
+#17: Score=35.56 | Open=66.7% | Click=22.2% | Sent=9 | Opens=6 | Clicks=2
+     Campaign=d6b34ced | Iter=2 | Var=A | Seg=catch_all
+
+#18: Score=35.56 | Open=66.7% | Click=22.2% | Sent=9 | Opens=6 | Clicks=2
+     Campaign=d6b34ced | Iter=2 | Var=B | Seg=catch_all
+
+#19: Score=35.49 | Open=49.3% | Click=29.6% | Sent=71 | Opens=35 | Clicks=21
+     Campaign=9796c77a | Iter=1 | Var=B | Seg=high_credit_score
+
+#20: Score=34.42 | Open=42.0% | Click=31.2% | Sent=231 | Opens=97 | Clicks=72
+     Campaign=71cae986 | Iter=1 | Var=B | Seg=young_adults
+
+#21: Score=34.42 | Open=42.0% | Click=31.2% | Sent=231 | Opens=97 | Clicks=72
+     Campaign=dd761be3 | Iter=1 | Var=B | Seg=young_adults
+
+#22: Score=33.48 | Open=60.9% | Click=21.7% | Sent=23 | Opens=14 | Clicks=5
+     Campaign=d6b34ced | Iter=2 | Var=B | Seg=kyc_compliant_customers
+
+#23: Score=33.33 | Open=66.7% | Click=19.1% | Sent=21 | Opens=14 | Clicks=4
+     Campaign=7dad2c29 | Iter=2 | Var=A | Seg=catch_all
+
+#24: Score=32.42 | Open=51.6% | Click=24.2% | Sent=95 | Opens=49 | Clicks=23
+     Campaign=9796c77a | Iter=1 | Var=B | Seg=married_with_family
+
+#25: Score=32.04 | Open=59.2% | Click=20.4% | Sent=49 | Opens=29 | Clicks=10
+     Campaign=d9077717 | Iter=1 | Var=A | Seg=high_income
+
+#26: Score=31.95 | Open=55.6% | Click=21.8% | Sent=133 | Opens=74 | Clicks=29
+     Campaign=d9077717 | Iter=2 | Var=A | Seg=app_users
+
+#27: Score=31.39 | Open=52.8% | Click=22.2% | Sent=36 | Opens=19 | Clicks=8
+     Campaign=a57069b9 | Iter=1 | Var=A | Seg=middle_income_families
+
+#28: Score=31.23 | Open=53.8% | Click=21.5% | Sent=130 | Opens=70 | Clicks=28
+     Campaign=9796c77a | Iter=1 | Var=B | Seg=social_media_active
+
+#29: Score=31.11 | Open=38.9% | Click=27.8% | Sent=18 | Opens=7 | Clicks=5
+     Campaign=d6b34ced | Iter=1 | Var=A | Seg=young_adults
+
+#30: Score=30.32 | Open=48.4% | Click=22.6% | Sent=31 | Opens=15 | Clicks=7
+     Campaign=5da502e4 | Iter=1 | Var=A | Seg=catch_all
+
