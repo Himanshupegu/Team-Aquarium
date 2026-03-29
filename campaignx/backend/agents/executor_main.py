@@ -1,6 +1,12 @@
 import json
 from backend.agents.tool_definitions import CAMPAIGNX_TOOLS, TOOL_SELECTION_PROMPT
 
+from datetime import datetime, timedelta, timezone
+
+from backend.tools.api_tools import call_tool_by_name
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
 
 def _discover_tool_via_llm(llm, task: str, log_callback=None) -> dict:
     """Use LLM to dynamically discover and select the appropriate API tool."""
@@ -32,7 +38,100 @@ def _discover_tool_via_llm(llm, task: str, log_callback=None) -> dict:
     return result
 
 
-# In your execute_campaigns function, replace the hardcoded send call with:
+# ═══════════════════════════════════════════════════════════════════════════
+# HELPER 1 — build_send_time
+# ═══════════════════════════════════════════════════════════════════════════
+
+def build_send_time(hour_ist: int, is_retargeting: bool = False) -> str:
+    """
+    Return send_time in DD:MM:YY HH:MM:SS format (2-digit year — critical).
+    Schedules for hour_ist today in IST. If that hour has already passed, uses tomorrow.
+    """
+    if is_retargeting:
+        hour_ist = 18 if hour_ist <= 12 else 9
+        
+    now = datetime.now(IST)
+    send = now.replace(hour=hour_ist, minute=0, second=0, microsecond=0)
+    if send <= now:
+        send += timedelta(days=1)
+    return send.strftime("%d:%m:%y %H:%M:%S")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HELPER 2 — sanitize_customer_ids
+# ═══════════════════════════════════════════════════════════════════════════
+
+def sanitize_customer_ids(customer_ids: list[str], cohort_ids: set[str]) -> list[str]:
+    """
+    Remove IDs not in the cohort and deduplicate while preserving order.
+    Logs a warning if any IDs were removed.
+    """
+    # Deduplicate preserving order
+    deduped = list(dict.fromkeys(customer_ids))
+    dup_count = len(customer_ids) - len(deduped)
+    if dup_count > 0:
+        print(f"[executor] Removed {dup_count} duplicate customer IDs")
+
+    # Filter to valid cohort IDs
+    valid = [cid for cid in deduped if cid in cohort_ids]
+    removed_count = len(deduped) - len(valid)
+    if removed_count > 0:
+        print(f"[executor] WARNING: Removed {removed_count} customer IDs not found in cohort")
+
+    return valid
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HELPER 3 — save_campaign_to_db
+# ═══════════════════════════════════════════════════════════════════════════
+
+def save_campaign_to_db(
+    campaign_id: str,
+    iteration: int,
+    segment_labels: list[str],
+    subject: str,
+    body: str,
+    customer_ids: list[str],
+    send_time: str,
+    strategy_notes: str,
+) -> None:
+    """Save one campaign row to the campaigns table. Opens its own DB session."""
+    from backend.db.session import SessionLocal
+    from backend.db.models import Campaign
+
+    db = SessionLocal()
+    try:
+        # Check if campaign already exists (e.g. from a previous iteration)
+        existing = db.query(Campaign).filter(Campaign.campaign_id == campaign_id).first()
+        if existing:
+            # Update existing campaign with combined info
+            existing.iteration = iteration
+            existing.customer_ids = list(set((existing.customer_ids or []) + customer_ids))
+            db.commit()
+            print(f"[executor] Updated existing campaign {campaign_id} in DB")
+        else:
+            campaign = Campaign(
+                campaign_id=campaign_id,
+                iteration=iteration,
+                variant_label="all",
+                segment_label=", ".join(segment_labels),
+                subject=subject,
+                body=body,
+                customer_ids=customer_ids,
+                send_time=send_time,
+                strategy_notes=strategy_notes,
+            )
+            db.add(campaign)
+            db.commit()
+            print(f"[executor] Saved campaign {campaign_id} to DB")
+    finally:
+        db.close()
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN FUNCTION
+# ═══════════════════════════════════════════════════════════════════════════
 
 def execute_campaigns(state, llm, log_callback=None):
     succeeded = []
@@ -95,3 +194,37 @@ def execute_campaigns(state, llm, log_callback=None):
 
     state.execution_results = {"succeeded": succeeded, "failed": failed}
     return state
+
+
+# ── Logging ───────────────────────────────────────────────────────────────
+
+def _log_to_db(campaign_id: str, iteration: int, sent: list[dict], failed: list[dict]) -> None:
+    """Log the execution summary to agent_logs."""
+    import json as _json
+    from backend.db.session import SessionLocal
+    from backend.db.models import AgentLog
+
+    campaign_ids = [s.get("api_campaign_id", s["campaign_id"]) for s in sent]
+    msg = _json.dumps({
+        "iteration": iteration,
+        "variant_count": len(sent) + len(failed),
+        "sent_count": len(sent),
+        "failed_count": len(failed),
+        "campaign_ids": campaign_ids,
+        "api_campaign_ids": campaign_ids,
+        "reasoning": f"Executed {len(sent)} campaigns successfully, {len(failed)} failed",
+    })
+
+    db = SessionLocal()
+    try:
+        log = AgentLog(
+            created_at=datetime.now(timezone.utc),
+            campaign_id=campaign_id,
+            agent_name="executor",
+            message=msg,
+        )
+        db.add(log)
+        db.commit()
+        print("[executor] Logged to agent_logs table")
+    finally:
+        db.close()
